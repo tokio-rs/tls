@@ -7,3 +7,7 @@ authors = ["quininer kel <quininer@live.com>"]
 futures = "*"
 tokio-core = "*"
 rustls = "*"
+
+[dev-dependencies]
+clap = "*"
+webpki-roots = "*"

@@ -161,11 +161,11 @@ impl<S, C> io::Read for TlsStream<S, C>
     where S: Io, C: Session
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        loop {
-            match self.session.read(buf) {
-                Ok(0) if !self.eof => self.do_io()?,
-                output => return output
-            }
+        self.do_io()?;
+        if self.eof {
+            Ok(0)
+        } else {
+            self.session.read(buf)
         }
     }
 }
