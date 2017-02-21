@@ -1,0 +1,9 @@
+[package]
+name = "tokio-rustls"
+version = "0.1.0"
+authors = ["quininer kel <quininer@live.com>"]
+
+[dependencies]
+futures = "*"
+tokio-core = "*"
+rustls = "*"
