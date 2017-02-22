@@ -11,3 +11,4 @@ rustls = "*"
 [dev-dependencies]
 clap = "*"
 webpki-roots = "*"
+tokio-file-unix = "*"

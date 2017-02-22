@@ -174,10 +174,11 @@ impl<S, C> io::Write for TlsStream<S, C>
     where S: Io, C: Session
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let output = self.session.write(buf);
         while self.session.wants_write() && self.io.poll_write().is_ready() {
             self.session.write_tls(&mut self.io)?;
         }
-        self.session.write(buf)
+        output
     }
 
     fn flush(&mut self) -> io::Result<()> {
