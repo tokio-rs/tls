@@ -50,9 +50,8 @@ fn main() {
         .next().unwrap();
 
     let stdout = stdout();
-    let mut stdout = File::new_nb(StdFile(stdout.lock())).unwrap();
-    stdout.set_nonblocking(true).unwrap();
-    let stdout = stdout.into_io(&handle).unwrap();
+    let stdout = File::new_nb(StdFile(stdout.lock())).unwrap()
+        .into_io(&handle).unwrap();
 
     let mut config = ClientConfig::new();
     if let Some(cafile) = cafile {
