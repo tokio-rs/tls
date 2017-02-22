@@ -1,3 +1,7 @@
+//! Async TLS streams
+//!
+//! [tokio-tls](https://github.com/tokio-rs/tokio-tls) fork, use [rustls](https://github.com/ctz/rustls).
+
 extern crate futures;
 extern crate tokio_core;
 extern crate rustls;
@@ -10,25 +14,31 @@ use rustls::{ Session, ClientSession, ServerSession };
 pub use rustls::{ ClientConfig, ServerConfig };
 
 
-pub trait TlsConnectorExt {
+/// Extension trait for the `Arc<ClientConfig>` type in the `rustls` crate.
+pub trait ClientConfigExt {
     fn connect_async<S>(&self, domain: &str, stream: S)
         -> ConnectAsync<S>
         where S: Io;
 }
 
-pub trait TlsAcceptorExt {
+/// Extension trait for the `Arc<ServerConfig>` type in the `rustls` crate.
+pub trait ServerConfigExt {
     fn accept_async<S>(&self, stream: S)
         -> AcceptAsync<S>
         where S: Io;
 }
 
 
+/// Future returned from `ClientConfigExt::connect_async` which will resolve
+/// once the connection handshake has finished.
 pub struct ConnectAsync<S>(MidHandshake<S, ClientSession>);
 
+/// Future returned from `ServerConfigExt::accept_async` which will resolve
+/// once the accept handshake has finished.
 pub struct AcceptAsync<S>(MidHandshake<S, ServerSession>);
 
 
-impl TlsConnectorExt for Arc<ClientConfig> {
+impl ClientConfigExt for Arc<ClientConfig> {
     fn connect_async<S>(&self, domain: &str, stream: S)
         -> ConnectAsync<S>
         where S: Io
@@ -39,7 +49,7 @@ impl TlsConnectorExt for Arc<ClientConfig> {
     }
 }
 
-impl TlsAcceptorExt for Arc<ServerConfig> {
+impl ServerConfigExt for Arc<ServerConfig> {
     fn accept_async<S>(&self, stream: S)
         -> AcceptAsync<S>
         where S: Io
@@ -103,10 +113,23 @@ impl<S, C> Future for MidHandshake<S, C>
 }
 
 
+/// A wrapper around an underlying raw stream which implements the TLS or SSL
+/// protocol.
+#[derive(Debug)]
 pub struct TlsStream<S, C> {
     eof: bool,
     io: S,
     session: C
+}
+
+impl<S, C> TlsStream<S, C> {
+    pub fn get_ref(&self) -> (&S, &C) {
+        (&self.io, &self.session)
+    }
+
+    pub fn get_mut(&mut self) -> (&mut S, &mut C) {
+        (&mut self.io, &mut self.session)
+    }
 }
 
 impl<S, C> TlsStream<S, C>

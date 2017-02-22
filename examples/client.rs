@@ -15,7 +15,7 @@ use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
 use clap::{ App, Arg };
 use tokio_file_unix::{ StdFile, File };
-use tokio_rustls::{ ClientConfig, TlsConnectorExt };
+use tokio_rustls::{ ClientConfig, ClientConfigExt };
 
 
 fn app() -> App<'static, 'static> {

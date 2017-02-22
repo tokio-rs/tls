@@ -16,7 +16,7 @@ use tokio_core::io::{ self, Io };
 use tokio_core::net::TcpListener;
 use tokio_core::reactor::Core;
 use clap::{ App, Arg };
-use tokio_rustls::{ ServerConfig, TlsAcceptorExt };
+use tokio_rustls::{ ServerConfig, ServerConfigExt };
 
 
 fn app() -> App<'static, 'static> {
