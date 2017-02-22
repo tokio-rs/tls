@@ -2,16 +2,19 @@
 //!
 //! [tokio-tls](https://github.com/tokio-rs/tokio-tls) fork, use [rustls](https://github.com/ctz/rustls).
 
+#[cfg_attr(feature = "tokio-proto", macro_use)]
 extern crate futures;
 extern crate tokio_core;
 extern crate rustls;
+
+pub mod proto;
 
 use std::io;
 use std::sync::Arc;
 use futures::{ Future, Poll, Async };
 use tokio_core::io::Io;
 use rustls::{ Session, ClientSession, ServerSession };
-pub use rustls::{ ClientConfig, ServerConfig };
+use rustls::{ ClientConfig, ServerConfig };
 
 
 /// Extension trait for the `Arc<ClientConfig>` type in the `rustls` crate.

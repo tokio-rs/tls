@@ -10,13 +10,13 @@ use std::net::ToSocketAddrs;
 use std::io::BufReader;
 use std::fs::File;
 use futures::{ Future, Stream };
-use rustls::{ Certificate, PrivateKey };
+use rustls::{ Certificate, PrivateKey, ServerConfig };
 use rustls::internal::pemfile::{ certs, rsa_private_keys };
 use tokio_core::io::{ self, Io };
 use tokio_core::net::TcpListener;
 use tokio_core::reactor::Core;
 use clap::{ App, Arg };
-use tokio_rustls::{ ServerConfig, ServerConfigExt };
+use tokio_rustls::ServerConfigExt;
 
 
 fn app() -> App<'static, 'static> {
