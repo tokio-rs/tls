@@ -8,10 +8,10 @@ extern crate tokio_rustls;
 
 use std::sync::Arc;
 use std::net::ToSocketAddrs;
-use std::io::{ BufReader, stdout };
+use std::io::{ BufReader, stdout, stdin };
 use std::fs;
 use futures::Future;
-use tokio_core::io;
+use tokio_core::io::{ self, Io };
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
 use clap::{ App, Arg };
@@ -49,6 +49,9 @@ fn main() {
         .to_socket_addrs().unwrap()
         .next().unwrap();
 
+    let stdin = stdin();
+    let stdin = File::new_nb(StdFile(stdin.lock())).unwrap()
+        .into_io(&handle).unwrap();
     let stdout = stdout();
     let stdout = File::new_nb(StdFile(stdout.lock())).unwrap()
         .into_io(&handle).unwrap();
@@ -66,7 +69,12 @@ fn main() {
     let resp = socket
         .and_then(|stream| arc_config.connect_async(domain, stream))
         .and_then(|stream| io::write_all(stream, text.as_bytes()))
-        .and_then(|(stream, _)| io::copy(stream, stdout));
+        .and_then(|(stream, _)| {
+            let (r, w) = stream.split();
+            io::copy(r, stdout).select(io::copy(stdin, w))
+                .map(|_| ())
+                .map_err(|(e, _)| e)
+        });
 
     core.run(resp).unwrap();
 }

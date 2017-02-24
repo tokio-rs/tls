@@ -98,16 +98,18 @@ impl<S, C> Future for MidHandshake<S, C>
             if !stream.session.is_handshaking() { break };
 
             match stream.do_io() {
-                Ok(()) => continue,
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => (),
-                Err(e) => return Err(e)
-            }
-            if !stream.session.is_handshaking() { break };
-
-            if stream.eof {
-                return Err(io::Error::from(io::ErrorKind::UnexpectedEof));
-            } else {
-                return Ok(Async::NotReady);
+                Ok(()) => if stream.eof {
+                    return Err(io::Error::from(io::ErrorKind::UnexpectedEof))
+                } else if stream.session.is_handshaking() {
+                    continue
+                } else {
+                    break
+                },
+                Err(e) => match (e.kind(), stream.session.is_handshaking()) {
+                    (io::ErrorKind::WouldBlock, true) => return Ok(Async::NotReady),
+                    (io::ErrorKind::WouldBlock, false) => break,
+                    (..) => return Err(e)
+                }
             }
         }
 
