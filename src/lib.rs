@@ -218,4 +218,20 @@ impl<S, C> io::Write for TlsStream<S, C>
     }
 }
 
-impl<S, C> Io for TlsStream<S, C> where S: Io, C: Session {}
+impl<S, C> Io for TlsStream<S, C> where S: Io, C: Session {
+    fn poll_read(&mut self) -> Async<()> {
+        if !self.eof && self.session.wants_read() && self.io.poll_read().is_not_ready() {
+            Async::NotReady
+        } else {
+            Async::Ready(())
+        }
+    }
+
+    fn poll_write(&mut self) -> Async<()> {
+        if self.session.wants_write() && self.io.poll_write().is_not_ready() {
+            Async::NotReady
+        } else {
+            Async::Ready(())
+        }
+    }
+}
