@@ -4,3 +4,21 @@
 [![docs.rs](https://docs.rs/tokio-rustls/badge.svg)](https://docs.rs/tokio-rustls/)
 
 [tokio-tls](https://github.com/tokio-rs/tokio-tls) fork, use [rustls](https://github.com/ctz/rustls).
+
+### exmaple
+
+```rust
+// ...
+
+use rustls::ClientConfig;
+use tokio_rustls::ClientConfigExt;
+
+let mut config = ClientConfig::new();
+config.root_store.add_trust_anchors(&webpki_roots::ROOTS);
+let config = Arc::new(config);
+
+TcpStream::connect(&addr, &handle)
+	.and_then(|socket| config.connect_async("www.rust-lang.org", socket))
+
+// ...
+```

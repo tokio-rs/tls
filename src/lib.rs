@@ -98,12 +98,10 @@ impl<S, C> Future for MidHandshake<S, C>
             if !stream.session.is_handshaking() { break };
 
             match stream.do_io() {
-                Ok(()) => if stream.eof {
-                    return Err(io::Error::from(io::ErrorKind::UnexpectedEof))
-                } else if stream.session.is_handshaking() {
-                    continue
-                } else {
-                    break
+                Ok(()) => match (stream.eof, stream.session.is_handshaking()) {
+                    (true, true) => return Err(io::Error::from(io::ErrorKind::UnexpectedEof)),
+                    (false, true) => continue,
+                    (..) => break
                 },
                 Err(e) => match (e.kind(), stream.session.is_handshaking()) {
                     (io::ErrorKind::WouldBlock, true) => return Ok(Async::NotReady),
@@ -189,11 +187,17 @@ impl<S, C> io::Read for TlsStream<S, C>
     where S: Io, C: Session
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.do_io()?;
-        if self.eof {
-            Ok(0)
-        } else {
-            self.session.read(buf)
+        loop {
+            match self.session.read(buf) {
+                Ok(0) if !self.eof => self.do_io()?,
+                Ok(n) => return Ok(n),
+                Err(e) => if e.kind() == io::ErrorKind::ConnectionAborted {
+                    self.do_io()?;
+                    return if self.eof { Ok(0) } else { Err(e) }
+                } else {
+                    return Err(e)
+                }
+            }
         }
     }
 }
@@ -202,11 +206,17 @@ impl<S, C> io::Write for TlsStream<S, C>
     where S: Io, C: Session
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let output = self.session.write(buf);
+        let output = self.session.write(buf)?;
+
         while self.session.wants_write() && self.io.poll_write().is_ready() {
-            self.session.write_tls(&mut self.io)?;
+            match self.session.write_tls(&mut self.io) {
+                Ok(_) => (),
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
+                Err(e) => return Err(e)
+            }
         }
-        output
+
+        Ok(output)
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -218,20 +228,4 @@ impl<S, C> io::Write for TlsStream<S, C>
     }
 }
 
-impl<S, C> Io for TlsStream<S, C> where S: Io, C: Session {
-    fn poll_read(&mut self) -> Async<()> {
-        if !self.eof && self.session.wants_read() && self.io.poll_read().is_not_ready() {
-            Async::NotReady
-        } else {
-            Async::Ready(())
-        }
-    }
-
-    fn poll_write(&mut self) -> Async<()> {
-        if self.session.wants_write() && self.io.poll_write().is_not_ready() {
-            Async::NotReady
-        } else {
-            Async::Ready(())
-        }
-    }
-}
+impl<S, C> Io for TlsStream<S, C> where S: Io, C: Session {}
