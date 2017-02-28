@@ -77,6 +77,7 @@ fn main() {
                     \r\n\
                     Hello world!".as_bytes()
                 ))
+                .and_then(|(stream, _)| io::flush(stream))
                 .map(move |_| println!("Accept: {}", addr))
                 .map_err(move |err| println!("Error: {:?} - {}", err, addr));
             handle.spawn(done);

@@ -221,7 +221,7 @@ impl<S, C> io::Write for TlsStream<S, C>
 
     fn flush(&mut self) -> io::Result<()> {
         self.session.flush()?;
-        while self.session.wants_write() && self.io.poll_write().is_ready() {
+        while self.session.wants_write() {
             self.session.write_tls(&mut self.io)?;
         }
         Ok(())
