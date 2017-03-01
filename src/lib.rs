@@ -94,7 +94,7 @@ impl<S, C> Future for MidHandshake<S, C>
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
-            let stream = self.inner.as_mut().unwrap_or_else(|| unreachable!());
+            let stream = self.inner.as_mut().unwrap();
             if !stream.session.is_handshaking() { break };
 
             match stream.do_io() {
@@ -111,7 +111,7 @@ impl<S, C> Future for MidHandshake<S, C>
             }
         }
 
-        Ok(Async::Ready(self.inner.take().unwrap_or_else(|| unreachable!())))
+        Ok(Async::Ready(self.inner.take().unwrap()))
     }
 }
 
@@ -228,4 +228,6 @@ impl<S, C> io::Write for TlsStream<S, C>
     }
 }
 
-impl<S, C> Io for TlsStream<S, C> where S: Io, C: Session {}
+impl<S, C> Io for TlsStream<S, C> where S: Io, C: Session {
+    // TODO impl poll_{read, write}
+}

@@ -41,10 +41,10 @@ impl<T> Server<T> {
     /// connections will go through the TLS acceptor first and then further I/O
     /// will go through the negotiated TLS stream through the `protocol`
     /// specified.
-    pub fn new(protocol: T, acceptor: ServerConfig) -> Server<T> {
+    pub fn new(protocol: T, acceptor: Arc<ServerConfig>) -> Server<T> {
         Server {
             inner: Arc::new(protocol),
-            acceptor: Arc::new(acceptor),
+            acceptor: acceptor,
         }
     }
 }
@@ -302,11 +302,11 @@ impl<T> Client<T> {
     /// The `connector` provided will be used to configure the TLS connection. Further I/O
     /// will go through the negotiated TLS stream through the `protocol` specified.
     pub fn new(protocol: T,
-               connector: ClientConfig,
+               connector: Arc<ClientConfig>,
                hostname: &str) -> Client<T> {
         Client {
             inner: Arc::new(protocol),
-            connector: Arc::new(connector),
+            connector: connector,
             hostname: hostname.to_string(),
         }
     }
