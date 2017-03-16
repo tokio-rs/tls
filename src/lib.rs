@@ -4,7 +4,6 @@
 
 #[cfg_attr(feature = "tokio-proto", macro_use)] extern crate futures;
 extern crate tokio_io;
-extern crate tokio_core;
 extern crate rustls;
 
 pub mod proto;
