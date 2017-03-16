@@ -14,11 +14,11 @@ extern crate tokio_proto;
 use std::io;
 use std::sync::Arc;
 use futures::{ Future, IntoFuture, Poll };
+use tokio_io::{ AsyncRead, AsyncWrite };
 use rustls::{ ServerConfig, ClientConfig, ServerSession, ClientSession };
 use self::tokio_proto::multiplex;
 use self::tokio_proto::pipeline;
 use self::tokio_proto::streaming;
-use tokio_core::io::Io;
 
 use { TlsStream, ServerConfigExt, ClientConfigExt, AcceptAsync, ConnectAsync };
 
@@ -52,14 +52,14 @@ impl<T> Server<T> {
 /// Future returned from `bind_transport` in the `ServerProto` implementation.
 pub struct ServerPipelineBind<T, I>
     where T: pipeline::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     state: PipelineState<T, I>,
 }
 
 enum PipelineState<T, I>
     where T: pipeline::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     First(AcceptAsync<I>, Arc<T>),
     Next(<T::BindTransport as IntoFuture>::Future),
@@ -67,7 +67,7 @@ enum PipelineState<T, I>
 
 impl<T, I> pipeline::ServerProto<I> for Server<T>
     where T: pipeline::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Request = T::Request;
     type Response = T::Response;
@@ -85,7 +85,7 @@ impl<T, I> pipeline::ServerProto<I> for Server<T>
 
 impl<T, I> Future for ServerPipelineBind<T, I>
     where T: pipeline::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Item = T::Transport;
     type Error = io::Error;
@@ -109,14 +109,14 @@ impl<T, I> Future for ServerPipelineBind<T, I>
 /// Future returned from `bind_transport` in the `ServerProto` implementation.
 pub struct ServerMultiplexBind<T, I>
     where T: multiplex::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     state: MultiplexState<T, I>,
 }
 
 enum MultiplexState<T, I>
     where T: multiplex::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     First(AcceptAsync<I>, Arc<T>),
     Next(<T::BindTransport as IntoFuture>::Future),
@@ -124,7 +124,7 @@ enum MultiplexState<T, I>
 
 impl<T, I> multiplex::ServerProto<I> for Server<T>
     where T: multiplex::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Request = T::Request;
     type Response = T::Response;
@@ -142,7 +142,7 @@ impl<T, I> multiplex::ServerProto<I> for Server<T>
 
 impl<T, I> Future for ServerMultiplexBind<T, I>
     where T: multiplex::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Item = T::Transport;
     type Error = io::Error;
@@ -166,14 +166,14 @@ impl<T, I> Future for ServerMultiplexBind<T, I>
 /// Future returned from `bind_transport` in the `ServerProto` implementation.
 pub struct ServerStreamingPipelineBind<T, I>
     where T: streaming::pipeline::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     state: StreamingPipelineState<T, I>,
 }
 
 enum StreamingPipelineState<T, I>
     where T: streaming::pipeline::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     First(AcceptAsync<I>, Arc<T>),
     Next(<T::BindTransport as IntoFuture>::Future),
@@ -181,7 +181,7 @@ enum StreamingPipelineState<T, I>
 
 impl<T, I> streaming::pipeline::ServerProto<I> for Server<T>
     where T: streaming::pipeline::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Request = T::Request;
     type RequestBody = T::RequestBody;
@@ -202,7 +202,7 @@ impl<T, I> streaming::pipeline::ServerProto<I> for Server<T>
 
 impl<T, I> Future for ServerStreamingPipelineBind<T, I>
     where T: streaming::pipeline::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Item = T::Transport;
     type Error = io::Error;
@@ -226,14 +226,14 @@ impl<T, I> Future for ServerStreamingPipelineBind<T, I>
 /// Future returned from `bind_transport` in the `ServerProto` implementation.
 pub struct ServerStreamingMultiplexBind<T, I>
     where T: streaming::multiplex::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     state: StreamingMultiplexState<T, I>,
 }
 
 enum StreamingMultiplexState<T, I>
     where T: streaming::multiplex::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     First(AcceptAsync<I>, Arc<T>),
     Next(<T::BindTransport as IntoFuture>::Future),
@@ -241,7 +241,7 @@ enum StreamingMultiplexState<T, I>
 
 impl<T, I> streaming::multiplex::ServerProto<I> for Server<T>
     where T: streaming::multiplex::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Request = T::Request;
     type RequestBody = T::RequestBody;
@@ -262,7 +262,7 @@ impl<T, I> streaming::multiplex::ServerProto<I> for Server<T>
 
 impl<T, I> Future for ServerStreamingMultiplexBind<T, I>
     where T: streaming::multiplex::ServerProto<TlsStream<I, ServerSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Item = T::Transport;
     type Error = io::Error;
@@ -315,14 +315,14 @@ impl<T> Client<T> {
 /// Future returned from `bind_transport` in the `ClientProto` implementation.
 pub struct ClientPipelineBind<T, I>
     where T: pipeline::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     state: ClientPipelineState<T, I>,
 }
 
 enum ClientPipelineState<T, I>
     where T: pipeline::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     First(ConnectAsync<I>, Arc<T>),
     Next(<T::BindTransport as IntoFuture>::Future),
@@ -330,7 +330,7 @@ enum ClientPipelineState<T, I>
 
 impl<T, I> pipeline::ClientProto<I> for Client<T>
     where T: pipeline::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Request = T::Request;
     type Response = T::Response;
@@ -349,7 +349,7 @@ impl<T, I> pipeline::ClientProto<I> for Client<T>
 
 impl<T, I> Future for ClientPipelineBind<T, I>
     where T: pipeline::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Item = T::Transport;
     type Error = io::Error;
@@ -373,14 +373,14 @@ impl<T, I> Future for ClientPipelineBind<T, I>
 /// Future returned from `bind_transport` in the `ClientProto` implementation.
 pub struct ClientMultiplexBind<T, I>
     where T: multiplex::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     state: ClientMultiplexState<T, I>,
 }
 
 enum ClientMultiplexState<T, I>
     where T: multiplex::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     First(ConnectAsync<I>, Arc<T>),
     Next(<T::BindTransport as IntoFuture>::Future),
@@ -388,7 +388,7 @@ enum ClientMultiplexState<T, I>
 
 impl<T, I> multiplex::ClientProto<I> for Client<T>
     where T: multiplex::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Request = T::Request;
     type Response = T::Response;
@@ -407,7 +407,7 @@ impl<T, I> multiplex::ClientProto<I> for Client<T>
 
 impl<T, I> Future for ClientMultiplexBind<T, I>
     where T: multiplex::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Item = T::Transport;
     type Error = io::Error;
@@ -431,14 +431,14 @@ impl<T, I> Future for ClientMultiplexBind<T, I>
 /// Future returned from `bind_transport` in the `ClientProto` implementation.
 pub struct ClientStreamingPipelineBind<T, I>
     where T: streaming::pipeline::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     state: ClientStreamingPipelineState<T, I>,
 }
 
 enum ClientStreamingPipelineState<T, I>
     where T: streaming::pipeline::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     First(ConnectAsync<I>, Arc<T>),
     Next(<T::BindTransport as IntoFuture>::Future),
@@ -446,7 +446,7 @@ enum ClientStreamingPipelineState<T, I>
 
 impl<T, I> streaming::pipeline::ClientProto<I> for Client<T>
     where T: streaming::pipeline::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Request = T::Request;
     type RequestBody = T::RequestBody;
@@ -468,7 +468,7 @@ impl<T, I> streaming::pipeline::ClientProto<I> for Client<T>
 
 impl<T, I> Future for ClientStreamingPipelineBind<T, I>
     where T: streaming::pipeline::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Item = T::Transport;
     type Error = io::Error;
@@ -492,14 +492,14 @@ impl<T, I> Future for ClientStreamingPipelineBind<T, I>
 /// Future returned from `bind_transport` in the `ClientProto` implementation.
 pub struct ClientStreamingMultiplexBind<T, I>
     where T: streaming::multiplex::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     state: ClientStreamingMultiplexState<T, I>,
 }
 
 enum ClientStreamingMultiplexState<T, I>
     where T: streaming::multiplex::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     First(ConnectAsync<I>, Arc<T>),
     Next(<T::BindTransport as IntoFuture>::Future),
@@ -507,7 +507,7 @@ enum ClientStreamingMultiplexState<T, I>
 
 impl<T, I> streaming::multiplex::ClientProto<I> for Client<T>
     where T: streaming::multiplex::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Request = T::Request;
     type RequestBody = T::RequestBody;
@@ -529,7 +529,7 @@ impl<T, I> streaming::multiplex::ClientProto<I> for Client<T>
 
 impl<T, I> Future for ClientStreamingMultiplexBind<T, I>
     where T: streaming::multiplex::ClientProto<TlsStream<I, ClientSession>>,
-          I: Io + 'static,
+          I: AsyncRead + AsyncWrite + 'static,
 {
     type Item = T::Transport;
     type Error = io::Error;
