@@ -14,6 +14,7 @@ for nonblocking I/O streams.
 [dependencies]
 futures = "0.1"
 tokio-core = "0.1"
+tokio-io = "0.1"
 rustls = "0.5"
 tokio-proto = { version = "0.1", optional = true }
 

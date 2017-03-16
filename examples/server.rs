@@ -1,6 +1,7 @@
 extern crate clap;
 extern crate rustls;
 extern crate futures;
+extern crate tokio_io;
 extern crate tokio_core;
 extern crate webpki_roots;
 extern crate tokio_rustls;
@@ -12,7 +13,7 @@ use std::fs::File;
 use futures::{ Future, Stream };
 use rustls::{ Certificate, PrivateKey, ServerConfig };
 use rustls::internal::pemfile::{ certs, rsa_private_keys };
-use tokio_core::io::{ self, Io };
+use tokio_io::{ io, AsyncRead };
 use tokio_core::net::TcpListener;
 use tokio_core::reactor::Core;
 use clap::{ App, Arg };
@@ -62,7 +63,7 @@ fn main() {
                     let (reader, writer) = stream.split();
                     io::copy(reader, writer)
                 })
-                .map(move |n| println!("Echo: {} - {}", n, addr))
+                .map(move |(n, _, _)| println!("Echo: {} - {}", n, addr))
                 .map_err(move |err| println!("Error: {:?} - {}", err, addr));
             handle.spawn(done);
 

@@ -1,6 +1,7 @@
 extern crate clap;
 extern crate rustls;
 extern crate futures;
+extern crate tokio_io;
 extern crate tokio_core;
 extern crate webpki_roots;
 extern crate tokio_file_unix;
@@ -11,7 +12,7 @@ use std::net::ToSocketAddrs;
 use std::io::{ BufReader, stdout, stdin };
 use std::fs;
 use futures::Future;
-use tokio_core::io::{ self, Io };
+use tokio_io::{ io, AsyncRead };
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
 use clap::{ App, Arg };
@@ -71,8 +72,9 @@ fn main() {
         .and_then(|stream| io::write_all(stream, text.as_bytes()))
         .and_then(|(stream, _)| {
             let (r, w) = stream.split();
-            io::copy(r, stdout).select(io::copy(stdin, w))
+            io::copy(r, stdout)
                 .map(|_| ())
+                .select(io::copy(stdin, w).map(|_| ()))
                 .map_err(|(e, _)| e)
         });
 
