@@ -1,6 +1,6 @@
 [package]
 name = "tokio-rustls"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["quininer kel <quininer@live.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/quininer/tokio-rustls"
