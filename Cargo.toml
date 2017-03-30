@@ -7,7 +7,7 @@ repository = "https://github.com/quininer/tokio-rustls"
 homepage = "https://github.com/quininer/tokio-rustls"
 documentation = "https://docs.rs/tokio-rustls"
 description = "Asynchronous TLS/SSL streams for Tokio using Rustls."
-categories = ["asynchronous", "network-programming"]
+categories = ["asynchronous", "cryptography", "network-programming"]
 
 [dependencies]
 futures = "0.1"
