@@ -27,7 +27,14 @@ TcpStream::connect(&addr, &handle)
 See [examples/client.rs](examples/client.rs). You can run it with:
 
 ```sh
-cargo run --example client google.com
+cargo run --example client hsts.badssl.com
+```
+
+Currently on Windows the example client reads from stdin and writes to stdout using
+blocking I/O. Until this is fixed, do something this on Windows:
+
+```sh
+echo | cargo run --example client hsts.badssl.com
 ```
 
 ### Server Example Program
