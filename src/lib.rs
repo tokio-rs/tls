@@ -2,7 +2,7 @@
 
 
 #[cfg_attr(feature = "tokio-proto", macro_use)] extern crate futures;
-extern crate tokio_io;
+#[macro_use] extern crate tokio_io;
 extern crate rustls;
 
 pub mod proto;
@@ -244,6 +244,7 @@ impl<S, C> AsyncWrite for TlsStream<S, C>
 {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         self.session.send_close_notify();
+        try_nb!(io::Write::flush(self));
         self.io.shutdown()
     }
 }
