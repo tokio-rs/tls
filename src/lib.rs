@@ -1,6 +1,5 @@
-//! Async TLS streams
-//!
-//! [tokio-tls](https://github.com/tokio-rs/tokio-tls) fork, use [rustls](https://github.com/ctz/rustls).
+//! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
+
 
 #[cfg_attr(feature = "tokio-proto", macro_use)] extern crate futures;
 extern crate tokio_io;
