@@ -6,6 +6,7 @@ license = "MIT/Apache-2.0"
 repository = "https://github.com/quininer/tokio-rustls"
 homepage = "https://github.com/quininer/tokio-rustls"
 documentation = "https://docs.rs/tokio-rustls"
+readme = "README.md"
 description = "Asynchronous TLS/SSL streams for Tokio using Rustls."
 categories = ["asynchronous", "cryptography", "network-programming"]
 
