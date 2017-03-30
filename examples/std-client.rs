@@ -1,25 +1,21 @@
-#![cfg(unix)]
-
 extern crate clap;
 extern crate rustls;
 extern crate futures;
 extern crate tokio_io;
 extern crate tokio_core;
 extern crate webpki_roots;
-extern crate tokio_file_unix;
 extern crate tokio_rustls;
 
 use std::sync::Arc;
 use std::net::ToSocketAddrs;
-use std::io::{ BufReader, stdout, stdin };
+use std::io::{ Read, Write, BufReader, stdout, stdin };
 use std::fs;
 use futures::Future;
-use tokio_io::{ io, AsyncRead };
+use tokio_io::io;
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
 use clap::{ App, Arg };
 use rustls::ClientConfig;
-use tokio_file_unix::{ StdFile, File };
 use tokio_rustls::ClientConfigExt;
 
 
@@ -52,12 +48,8 @@ fn main() {
         .to_socket_addrs().unwrap()
         .next().unwrap();
 
-    let stdin = stdin();
-    let stdin = File::new_nb(StdFile(stdin.lock())).unwrap()
-        .into_io(&handle).unwrap();
-    let stdout = stdout();
-    let stdout = File::new_nb(StdFile(stdout.lock())).unwrap()
-        .into_io(&handle).unwrap();
+    let mut input = Vec::new();
+    stdin().read_to_end(&mut input).unwrap();
 
     let mut config = ClientConfig::new();
     if let Some(cafile) = cafile {
@@ -72,13 +64,9 @@ fn main() {
     let resp = socket
         .and_then(|stream| arc_config.connect_async(domain, stream))
         .and_then(|stream| io::write_all(stream, text.as_bytes()))
-        .and_then(|(stream, _)| {
-            let (r, w) = stream.split();
-            io::copy(r, stdout)
-                .map(|_| ())
-                .select(io::copy(stdin, w).map(|_| ()))
-                .map_err(|(e, _)| e)
-        });
+        .and_then(|(stream, _)| io::write_all(stream, &input))
+        .and_then(|(stream, _)| io::read_to_end(stream, Vec::new()))
+        .and_then(|(_, output)| stdout().write_all(&output));
 
     core.run(resp).unwrap();
 }

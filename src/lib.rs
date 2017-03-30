@@ -11,8 +11,10 @@ use std::io;
 use std::sync::Arc;
 use futures::{ Future, Poll, Async };
 use tokio_io::{ AsyncRead, AsyncWrite };
-use rustls::{ Session, ClientSession, ServerSession };
-use rustls::{ ClientConfig, ServerConfig };
+use rustls::{
+    Session, ClientSession, ServerSession,
+    ClientConfig, ServerConfig
+};
 
 
 /// Extension trait for the `Arc<ClientConfig>` type in the `rustls` crate.
