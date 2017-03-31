@@ -1,13 +1,14 @@
 [package]
 name = "tokio-rustls"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["quininer kel <quininer@live.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/quininer/tokio-rustls"
 homepage = "https://github.com/quininer/tokio-rustls"
 documentation = "https://docs.rs/tokio-rustls"
+readme = "README.md"
 description = "Asynchronous TLS/SSL streams for Tokio using Rustls."
-categories = ["asynchronous", "network-programming"]
+categories = ["asynchronous", "cryptography", "network-programming"]
 
 [dependencies]
 futures = "0.1"
