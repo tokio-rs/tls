@@ -63,7 +63,7 @@ fn main() {
                     let (reader, writer) = stream.split();
                     io::copy(reader, writer)
                 })
-                .map(move |(n, _, _)| println!("Echo: {} - {}", n, addr))
+                .map(move |(n, ..)| println!("Echo: {} - {}", n, addr))
                 .map_err(move |err| println!("Error: {:?} - {}", err, addr));
             handle.spawn(done);
 
@@ -72,11 +72,11 @@ fn main() {
             let done = arc_config.accept_async(stream)
                 .and_then(|stream| io::write_all(
                     stream,
-                    "HTTP/1.0 200 ok\r\n\
+                    &b"HTTP/1.0 200 ok\r\n\
                     Connection: close\r\n\
                     Content-length: 12\r\n\
                     \r\n\
-                    Hello world!".as_bytes()
+                    Hello world!"[..]
                 ))
                 .and_then(|(stream, _)| io::flush(stream))
                 .map(move |_| println!("Accept: {}", addr))

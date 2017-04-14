@@ -7,10 +7,10 @@ Asynchronous TLS/SSL streams for [Tokio](https://tokio.rs/) using
 ### Basic Structure of a Client
 
 ```rust
-// ...
-
 use rustls::ClientConfig;
 use tokio_rustls::ClientConfigExt;
+
+// ...
 
 let mut config = ClientConfig::new();
 config.root_store.add_trust_anchors(&webpki_roots::ROOTS);

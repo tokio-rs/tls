@@ -78,7 +78,7 @@ fn main() {
     #[cfg(unix)]
     let stdin = File::new_nb(StdFile(stdin.lock())).unwrap()
         .into_io(&handle).unwrap();
-    
+
     #[cfg(unix)]
     let stdout = stdout();
 

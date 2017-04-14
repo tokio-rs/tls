@@ -227,7 +227,7 @@ impl<S, C> io::Write for TlsStream<S, C>
         while self.session.wants_write() {
             self.session.write_tls(&mut self.io)?;
         }
-        Ok(())
+        self.io.flush()
     }
 }
 
@@ -244,7 +244,10 @@ impl<S, C> AsyncWrite for TlsStream<S, C>
 {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         self.session.send_close_notify();
-        try_nb!(io::Write::flush(self));
+        while self.session.wants_write() {
+            try_nb!(self.session.write_tls(&mut self.io));
+        }
+        try_nb!(self.io.flush());
         self.io.shutdown()
     }
 }
