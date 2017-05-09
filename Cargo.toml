@@ -1,6 +1,6 @@
 [package]
 name = "tokio-rustls"
-version = "0.1.7"
+version = "0.2.0"
 authors = ["quininer kel <quininer@live.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/quininer/tokio-rustls"
@@ -13,13 +13,13 @@ categories = ["asynchronous", "cryptography", "network-programming"]
 [dependencies]
 futures = "0.1"
 tokio-io = "0.1"
-rustls = "0.5"
+rustls = "0.7"
 tokio-proto = { version = "0.1", optional = true }
 
 [dev-dependencies]
 tokio-core = "0.1"
 clap = "2.20"
-webpki-roots = "0.7"
+webpki-roots = "0.10.0"
 
 [target.'cfg(unix)'.dev-dependencies]
 tokio-file-unix = "0.2"
