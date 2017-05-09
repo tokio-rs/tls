@@ -22,4 +22,4 @@ clap = "2.20"
 webpki-roots = "0.10.0"
 
 [target.'cfg(unix)'.dev-dependencies]
-tokio-file-unix = "0.2"
+tokio-file-unix = "0.4"
