@@ -209,17 +209,29 @@ impl<S, C> io::Write for TlsStream<S, C>
     where S: AsyncRead + AsyncWrite, C: Session
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let output = self.session.write(buf)?;
+        loop {
+            let output = self.session.write(buf)?;
 
-        while self.session.wants_write() {
-            match self.session.write_tls(&mut self.io) {
-                Ok(_) => (),
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
-                Err(e) => return Err(e)
+            while self.session.wants_write() {
+                match self.session.write_tls(&mut self.io) {
+                    Ok(_) => (),
+                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                        if output == 0 {
+                            // Both rustls buffer and IO buffer are blocking.
+                            return Err(io::Error::from(io::ErrorKind::WouldBlock));
+                        } else {
+                            break;
+                        }
+                    }
+                    Err(e) => return Err(e)
+                }
+            }
+
+            if output > 0 {
+                // Already wrote something out.
+                return Ok(output);
             }
         }
-
-        Ok(output)
     }
 
     fn flush(&mut self) -> io::Result<()> {
