@@ -52,6 +52,15 @@ impl ClientConfigExt for Arc<ClientConfig> {
     }
 }
 
+pub fn connect_async_with_session<S>(stream: S, session: ClientSession)
+    -> ConnectAsync<S>
+    where S: AsyncRead + AsyncWrite
+{
+    ConnectAsync(MidHandshake {
+        inner: Some(TlsStream::new(stream, session))
+    })
+}
+
 impl ServerConfigExt for Arc<ServerConfig> {
     fn accept_async<S>(&self, stream: S)
         -> AcceptAsync<S>
@@ -61,6 +70,15 @@ impl ServerConfigExt for Arc<ServerConfig> {
             inner: Some(TlsStream::new(stream, ServerSession::new(self)))
         })
     }
+}
+
+pub fn accept_async_with_session<S>(stream: S, session: ServerSession)
+    -> AcceptAsync<S>
+    where S: AsyncRead + AsyncWrite
+{
+    AcceptAsync(MidHandshake {
+        inner: Some(TlsStream::new(stream, session))
+    })
 }
 
 impl<S: AsyncRead + AsyncWrite> Future for ConnectAsync<S> {
