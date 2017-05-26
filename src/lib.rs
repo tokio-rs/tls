@@ -46,12 +46,11 @@ impl ClientConfigExt for Arc<ClientConfig> {
         -> ConnectAsync<S>
         where S: AsyncRead + AsyncWrite
     {
-        ConnectAsync(MidHandshake {
-            inner: Some(TlsStream::new(stream, ClientSession::new(self, domain)))
-        })
+        connect_async_with_session(stream, ClientSession::new(self, domain))
     }
 }
 
+#[inline]
 pub fn connect_async_with_session<S>(stream: S, session: ClientSession)
     -> ConnectAsync<S>
     where S: AsyncRead + AsyncWrite
@@ -66,12 +65,11 @@ impl ServerConfigExt for Arc<ServerConfig> {
         -> AcceptAsync<S>
         where S: AsyncRead + AsyncWrite
     {
-        AcceptAsync(MidHandshake {
-            inner: Some(TlsStream::new(stream, ServerSession::new(self)))
-        })
+        accept_async_with_session(stream, ServerSession::new(self))
     }
 }
 
+#[inline]
 pub fn accept_async_with_session<S>(stream: S, session: ServerSession)
     -> AcceptAsync<S>
     where S: AsyncRead + AsyncWrite
@@ -227,7 +225,7 @@ impl<S, C> io::Write for TlsStream<S, C>
     where S: AsyncRead + AsyncWrite, C: Session
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        if buf.len() == 0 {
+        if buf.is_empty() {
             return Ok(0);
         }
 
@@ -237,14 +235,12 @@ impl<S, C> io::Write for TlsStream<S, C>
             while self.session.wants_write() {
                 match self.session.write_tls(&mut self.io) {
                     Ok(_) => (),
-                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                        if output == 0 {
-                            // Both rustls buffer and IO buffer are blocking.
-                            return Err(io::Error::from(io::ErrorKind::WouldBlock));
-                        } else {
-                            break;
-                        }
-                    }
+                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => if output == 0 {
+                        // Both rustls buffer and IO buffer are blocking.
+                        return Err(io::Error::from(io::ErrorKind::WouldBlock));
+                    } else {
+                        break;
+                    },
                     Err(e) => return Err(e)
                 }
             }
