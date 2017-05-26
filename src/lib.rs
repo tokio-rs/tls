@@ -227,6 +227,10 @@ impl<S, C> io::Write for TlsStream<S, C>
     where S: AsyncRead + AsyncWrite, C: Session
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if buf.len() == 0 {
+            return Ok(0);
+        }
+
         loop {
             let output = self.session.write(buf)?;
 
