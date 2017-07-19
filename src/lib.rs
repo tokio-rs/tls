@@ -172,8 +172,16 @@ impl<S, C> TlsStream<S, C>
                         continue
                     },
                     Ok(_) => {
-                        self.session.process_new_packets()
-                            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+                        if let Err(err) = self.session.process_new_packets() {
+                            // flush queued messages before returning an Err in
+                            // order to send alerts instead of abruptly closing
+                            // the socket
+                            if self.session.wants_write() {
+                                // ignore result to avoid masking original error
+                                let _ = self.session.write_tls(&mut self.io);
+                            }
+                            return Err(io::Error::new(io::ErrorKind::Other, err));
+                        }
                         continue
                     },
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => true,
