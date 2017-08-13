@@ -1,6 +1,6 @@
 [package]
 name = "tokio-rustls"
-version = "0.2.4"
+version = "0.3.0"
 authors = ["quininer kel <quininer@live.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/quininer/tokio-rustls"
@@ -16,7 +16,7 @@ danger = [ "rustls/dangerous_configuration" ]
 [dependencies]
 futures = "0.1"
 tokio-io = "0.1"
-rustls = "0.9"
+rustls = "0.10"
 tokio-proto = { version = "0.1", optional = true }
 
 [dev-dependencies]
