@@ -1,5 +1,10 @@
 # tokio-rustls
-[![crates](https://img.shields.io/crates/v/tokio-rustls.svg)](https://crates.io/crates/tokio-rustls) [![license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/quininer/tokio-rustls/blob/master/LICENSE-MIT) [![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/quininer/tokio-rustls/blob/master/LICENSE-APACHE) [![docs.rs](https://docs.rs/tokio-rustls/badge.svg)](https://docs.rs/tokio-rustls/)
+[![travis-ci](https://travis-ci.org/quininer/tokio-rustls.svg?branch=master)](https://travis-ci.org/quininer/tokio-rustls)
+[![appveyor](https://ci.appveyor.com/api/projects/status/4ukw15enii50suqi?svg=true)](https://ci.appveyor.com/project/quininer/tokio-rustls)
+[![crates](https://img.shields.io/crates/v/tokio-rustls.svg)](https://crates.io/crates/tokio-rustls)
+[![license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/quininer/tokio-rustls/blob/master/LICENSE-MIT)
+[![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/quininer/tokio-rustls/blob/master/LICENSE-APACHE)
+[![docs.rs](https://docs.rs/tokio-rustls/badge.svg)](https://docs.rs/tokio-rustls/)
 
 Asynchronous TLS/SSL streams for [Tokio](https://tokio.rs/) using
 [Rustls](https://github.com/ctz/rustls).

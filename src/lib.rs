@@ -165,6 +165,7 @@ impl<S, C> Future for MidHandshake<S, C>
 /// protocol.
 #[derive(Debug)]
 pub struct TlsStream<S, C> {
+    is_shutdown: bool,
     eof: bool,
     io: S,
     session: C
@@ -186,6 +187,7 @@ impl<S, C> TlsStream<S, C>
     #[inline]
     pub fn new(io: S, session: C) -> TlsStream<S, C> {
         TlsStream {
+            is_shutdown: false,
             eof: false,
             io: io,
             session: session
@@ -310,7 +312,10 @@ impl<S, C> AsyncWrite for TlsStream<S, C>
         C: Session
 {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
-        self.session.send_close_notify();
+        if !self.is_shutdown {
+            self.session.send_close_notify();
+            self.is_shutdown = true;
+        }
         while self.session.wants_write() {
             try_nb!(self.session.write_tls(&mut self.io));
         }
