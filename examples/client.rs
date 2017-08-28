@@ -64,7 +64,7 @@ fn main() {
         let mut pem = BufReader::new(fs::File::open(cafile).unwrap());
         config.root_store.add_pem_file(&mut pem).unwrap();
     } else {
-        config.root_store.add_trust_anchors(&webpki_roots::ROOTS);
+        config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
     }
     let arc_config = Arc::new(config);
 
