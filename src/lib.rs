@@ -22,11 +22,6 @@ pub trait ClientConfigExt {
     fn connect_async<S>(&self, domain: &str, stream: S)
         -> ConnectAsync<S>
         where S: AsyncRead + AsyncWrite;
-
-    #[cfg(feature = "danger")]
-    fn danger_connect_async_without_providing_domain_for_certificate_verification_and_server_name_indication<S>(&self, stream: S)
-        -> ConnectAsync<S>
-        where S: AsyncRead + AsyncWrite;
 }
 
 /// Extension trait for the `Arc<ServerConfig>` type in the `rustls` crate.
@@ -52,30 +47,6 @@ impl ClientConfigExt for Arc<ClientConfig> {
         where S: AsyncRead + AsyncWrite
     {
         connect_async_with_session(stream, ClientSession::new(self, domain))
-    }
-
-    #[cfg(feature = "danger")]
-    fn danger_connect_async_without_providing_domain_for_certificate_verification_and_server_name_indication<S>(&self, stream: S)
-        -> ConnectAsync<S>
-        where S: AsyncRead + AsyncWrite
-    {
-        use rustls::{ ServerCertVerifier, RootCertStore, Certificate, ServerCertVerified, TLSError };
-
-        struct NoCertVerifier;
-        impl ServerCertVerifier for NoCertVerifier {
-            fn verify_server_cert(&self, _: &RootCertStore, _: &[Certificate], _: &str, _: &[u8])
-                -> Result<ServerCertVerified, TLSError>
-            {
-                Ok(ServerCertVerified::assertion())
-            }
-        }
-
-        let mut client_config = ClientConfig::new();
-        client_config.clone_from(self);
-        client_config.dangerous()
-            .set_certificate_verifier(Arc::new(NoCertVerifier));
-
-        Arc::new(client_config).connect_async("", stream)
     }
 }
 

@@ -60,7 +60,7 @@ fn start_server(cert: Vec<Certificate>, rsa: PrivateKey) -> SocketAddr {
     recv.recv().unwrap()
 }
 
-fn start_client(addr: &SocketAddr, domain: Option<&str>, chain: Option<BufReader<Cursor<&str>>>) -> io::Result<()> {
+fn start_client(addr: &SocketAddr, domain: &str, chain: Option<BufReader<Cursor<&str>>>) -> io::Result<()> {
     let mut config = ClientConfig::new();
     if let Some(mut chain) = chain {
         config.root_store.add_pem_file(&mut chain).unwrap();
@@ -72,17 +72,7 @@ fn start_client(addr: &SocketAddr, domain: Option<&str>, chain: Option<BufReader
 
     #[allow(unreachable_code, unused_variables)]
     let done = TcpStream::connect(addr, &handle)
-        .and_then(|stream| if let Some(domain) = domain {
-            config.connect_async(domain, stream)
-        } else {
-            #[cfg(feature = "danger")]
-            let c = config.danger_connect_async_without_providing_domain_for_certificate_verification_and_server_name_indication(stream);
-
-            #[cfg(not(feature = "danger"))]
-            let c = panic!();
-
-            c
-        })
+        .and_then(|stream| config.connect_async(domain, stream))
         .and_then(|stream| aio::write_all(stream, HELLO_WORLD))
         .and_then(|(stream, _)| aio::read_exact(stream, vec![0; HELLO_WORLD.len()]))
         .and_then(|(_, buf)| {
@@ -102,10 +92,7 @@ fn main() {
 
     let addr = start_server(cert, keys.pop().unwrap());
 
-    start_client(&addr, Some("localhost"), Some(chain)).unwrap();
-
-    #[cfg(feature = "danger")]
-    start_client(&addr, None, None).unwrap();
+    start_client(&addr, "localhost", Some(chain)).unwrap();
 }
 
 #[should_panic]
@@ -117,5 +104,5 @@ fn fail() {
 
     let addr = start_server(cert, keys.pop().unwrap());
 
-    start_client(&addr, Some("google.com"), Some(chain)).unwrap();
+    start_client(&addr, "google.com", Some(chain)).unwrap();
 }
