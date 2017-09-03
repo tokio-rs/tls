@@ -17,13 +17,14 @@ appveyor = { repository = "quininer/tokio-rustls" }
 [dependencies]
 futures = "0.1.15"
 tokio-io = "0.1.3"
-rustls = "0.11"
+rustls = { git = "https://github.com/ctz/rustls" }
 tokio-proto = { version = "0.1.1", optional = true }
+webpki = { git = "https://github.com/briansmith/webpki" }
 
 [dev-dependencies]
 tokio-core = "0.1.9"
 clap = "2.26"
-webpki-roots = "0.13"
+webpki-roots = { git = "https://github.com/briansmith/webpki-roots", branch = "webpki-github" }
 
 [target.'cfg(unix)'.dev-dependencies]
 tokio-file-unix = "0.4"

@@ -3,6 +3,7 @@ extern crate futures;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_rustls;
+extern crate webpki;
 
 use std::{ io, thread };
 use std::io::{ BufReader, Cursor };
@@ -24,7 +25,7 @@ const HELLO_WORLD: &[u8] = b"Hello world!";
 
 
 fn start_server(cert: Vec<Certificate>, rsa: PrivateKey) -> SocketAddr {
-    let mut config = ServerConfig::new();
+    let mut config = ServerConfig::new(rustls::NoClientAuth::new());
     config.set_single_cert(cert, rsa);
     let config = Arc::new(config);
 
@@ -60,7 +61,9 @@ fn start_server(cert: Vec<Certificate>, rsa: PrivateKey) -> SocketAddr {
     recv.recv().unwrap()
 }
 
-fn start_client(addr: &SocketAddr, domain: &str, chain: Option<BufReader<Cursor<&str>>>) -> io::Result<()> {
+fn start_client(addr: &SocketAddr, domain: &str,
+                chain: Option<BufReader<Cursor<&str>>>) -> io::Result<()> {
+    let domain = webpki::DNSNameRef::try_from_ascii_str(domain).unwrap();
     let mut config = ClientConfig::new();
     if let Some(mut chain) = chain {
         config.root_store.add_pem_file(&mut chain).unwrap();
@@ -91,7 +94,6 @@ fn main() {
     let chain = BufReader::new(Cursor::new(CHAIN));
 
     let addr = start_server(cert, keys.pop().unwrap());
-
     start_client(&addr, "localhost", Some(chain)).unwrap();
 }
 
