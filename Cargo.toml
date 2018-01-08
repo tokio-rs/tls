@@ -1,6 +1,6 @@
 [package]
 name = "tokio-rustls"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["quininer kel <quininer@live.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/quininer/tokio-rustls"
@@ -17,14 +17,14 @@ appveyor = { repository = "quininer/tokio-rustls" }
 [dependencies]
 futures = "0.1.15"
 tokio-io = "0.1.3"
-rustls = { git = "https://github.com/ctz/rustls" }
+rustls = "0.12"
+webpki = "0.18.0-alpha"
 tokio-proto = { version = "0.1.1", optional = true }
-webpki = { git = "https://github.com/briansmith/webpki" }
 
 [dev-dependencies]
 tokio-core = "0.1.9"
 clap = "2.26"
-webpki-roots = { git = "https://github.com/briansmith/webpki-roots", branch = "webpki-github" }
+webpki-roots = "0.14"
 
 [target.'cfg(unix)'.dev-dependencies]
 tokio-file-unix = "0.4"
