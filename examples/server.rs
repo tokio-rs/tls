@@ -11,7 +11,7 @@ use std::net::ToSocketAddrs;
 use std::io::BufReader;
 use std::fs::File;
 use futures::{ Future, Stream };
-use rustls::{ Certificate, PrivateKey, ServerConfig };
+use rustls::{ Certificate, NoClientAuth, PrivateKey, ServerConfig };
 use rustls::internal::pemfile::{ certs, rsa_private_keys };
 use tokio_io::{ io, AsyncRead };
 use tokio_core::net::TcpListener;
@@ -51,7 +51,7 @@ fn main() {
     let mut core = Core::new().unwrap();
     let handle = core.handle();
 
-    let mut config = ServerConfig::new();
+    let mut config = ServerConfig::new(NoClientAuth::new());
     config.set_single_cert(load_certs(cert_file), load_keys(key_file).remove(0));
     let arc_config = Arc::new(config);
 

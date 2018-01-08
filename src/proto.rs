@@ -19,6 +19,7 @@ use rustls::{ ServerConfig, ClientConfig, ServerSession, ClientSession };
 use self::tokio_proto::multiplex;
 use self::tokio_proto::pipeline;
 use self::tokio_proto::streaming;
+use webpki;
 
 use { TlsStream, ServerConfigExt, ClientConfigExt, AcceptAsync, ConnectAsync };
 
@@ -292,7 +293,7 @@ impl<T, I> Future for ServerStreamingMultiplexBind<T, I>
 pub struct Client<T> {
     inner: Arc<T>,
     connector: Arc<ClientConfig>,
-    hostname: String,
+    hostname: webpki::DNSName,
 }
 
 impl<T> Client<T> {
@@ -303,11 +304,11 @@ impl<T> Client<T> {
     /// will go through the negotiated TLS stream through the `protocol` specified.
     pub fn new(protocol: T,
                connector: Arc<ClientConfig>,
-               hostname: &str) -> Client<T> {
+               hostname: webpki::DNSName) -> Client<T> {
         Client {
             inner: Arc::new(protocol),
             connector: connector,
-            hostname: hostname.to_string(),
+            hostname: hostname,
         }
     }
 }
@@ -339,7 +340,7 @@ impl<T, I> pipeline::ClientProto<I> for Client<T>
 
     fn bind_transport(&self, io: I) -> Self::BindTransport {
         let proto = self.inner.clone();
-        let io = self.connector.connect_async(&self.hostname, io);
+        let io = self.connector.connect_async(self.hostname.as_ref(), io);
 
         ClientPipelineBind {
             state: ClientPipelineState::First(io, proto),
@@ -397,7 +398,7 @@ impl<T, I> multiplex::ClientProto<I> for Client<T>
 
     fn bind_transport(&self, io: I) -> Self::BindTransport {
         let proto = self.inner.clone();
-        let io = self.connector.connect_async(&self.hostname, io);
+        let io = self.connector.connect_async(self.hostname.as_ref(), io);
 
         ClientMultiplexBind {
             state: ClientMultiplexState::First(io, proto),
@@ -458,7 +459,7 @@ impl<T, I> streaming::pipeline::ClientProto<I> for Client<T>
 
     fn bind_transport(&self, io: I) -> Self::BindTransport {
         let proto = self.inner.clone();
-        let io = self.connector.connect_async(&self.hostname, io);
+        let io = self.connector.connect_async(self.hostname.as_ref(), io);
 
         ClientStreamingPipelineBind {
             state: ClientStreamingPipelineState::First(io, proto),
@@ -519,7 +520,7 @@ impl<T, I> streaming::multiplex::ClientProto<I> for Client<T>
 
     fn bind_transport(&self, io: I) -> Self::BindTransport {
         let proto = self.inner.clone();
-        let io = self.connector.connect_async(&self.hostname, io);
+        let io = self.connector.connect_async(self.hostname.as_ref(), io);
 
         ClientStreamingMultiplexBind {
             state: ClientStreamingMultiplexState::First(io, proto),

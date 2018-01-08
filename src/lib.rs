@@ -4,6 +4,7 @@
 #[cfg_attr(feature = "tokio-proto", macro_use)] extern crate futures;
 #[macro_use] extern crate tokio_io;
 extern crate rustls;
+extern crate webpki;
 
 pub mod proto;
 
@@ -19,7 +20,7 @@ use rustls::{
 
 /// Extension trait for the `Arc<ClientConfig>` type in the `rustls` crate.
 pub trait ClientConfigExt {
-    fn connect_async<S>(&self, domain: &str, stream: S)
+    fn connect_async<S>(&self, domain: webpki::DNSNameRef, stream: S)
         -> ConnectAsync<S>
         where S: AsyncRead + AsyncWrite;
 }
@@ -42,7 +43,7 @@ pub struct AcceptAsync<S>(MidHandshake<S, ServerSession>);
 
 
 impl ClientConfigExt for Arc<ClientConfig> {
-    fn connect_async<S>(&self, domain: &str, stream: S)
+    fn connect_async<S>(&self, domain: webpki::DNSNameRef, stream: S)
         -> ConnectAsync<S>
         where S: AsyncRead + AsyncWrite
     {

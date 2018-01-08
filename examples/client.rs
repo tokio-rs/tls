@@ -3,6 +3,7 @@ extern crate rustls;
 extern crate futures;
 extern crate tokio_io;
 extern crate tokio_core;
+extern crate webpki;
 extern crate webpki_roots;
 extern crate tokio_rustls;
 
@@ -67,6 +68,8 @@ fn main() {
         config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
     }
     let arc_config = Arc::new(config);
+
+    let domain = webpki::DNSNameRef::try_from_ascii_str(domain).unwrap();
 
     let socket = TcpStream::connect(&addr, &handle);
 
