@@ -1,6 +1,6 @@
 extern crate rustls;
 extern crate futures;
-extern crate tokio_core;
+extern crate tokio;
 extern crate tokio_io;
 extern crate tokio_rustls;
 extern crate webpki;
@@ -11,8 +11,8 @@ use std::sync::Arc;
 use std::sync::mpsc::channel;
 use std::net::{ SocketAddr, IpAddr, Ipv4Addr };
 use futures::{ Future, Stream };
-use tokio_core::reactor::Core;
-use tokio_core::net::{ TcpListener, TcpStream };
+use tokio::executor::current_thread;
+use tokio::net::{ TcpListener, TcpStream };
 use tokio_io::io as aio;
 use rustls::{ Certificate, PrivateKey, ServerConfig, ClientConfig };
 use rustls::internal::pemfile::{ certs, rsa_private_keys };
@@ -33,14 +33,12 @@ fn start_server(cert: Vec<Certificate>, rsa: PrivateKey) -> SocketAddr {
 
     thread::spawn(move || {
         let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
-        let listener = TcpListener::bind(&addr, &handle).unwrap();
+        let listener = TcpListener::bind(&addr).unwrap();
 
         send.send(listener.local_addr().unwrap()).unwrap();
 
         let done = listener.incoming()
-            .for_each(|(stream, _)| {
+            .for_each(move |stream| {
                 let done = config.accept_async(stream)
                     .and_then(|stream| aio::read_exact(stream, vec![0; HELLO_WORLD.len()]))
                     .and_then(|(stream, buf)| {
@@ -50,12 +48,13 @@ fn start_server(cert: Vec<Certificate>, rsa: PrivateKey) -> SocketAddr {
                     .map(drop)
                     .map_err(drop);
 
-                handle.spawn(done);
+                current_thread::spawn(done);
                 Ok(())
             })
             .map(drop)
             .map_err(drop);
-        core.run(done).unwrap();
+
+        current_thread::run(|_| current_thread::spawn(done));
     });
 
     recv.recv().unwrap()
@@ -70,11 +69,7 @@ fn start_client(addr: &SocketAddr, domain: &str,
     }
     let config = Arc::new(config);
 
-    let mut core = Core::new()?;
-    let handle = core.handle();
-
-    #[allow(unreachable_code, unused_variables)]
-    let done = TcpStream::connect(addr, &handle)
+    let done = TcpStream::connect(addr)
         .and_then(|stream| config.connect_async(domain, stream))
         .and_then(|stream| aio::write_all(stream, HELLO_WORLD))
         .and_then(|(stream, _)| aio::read_exact(stream, vec![0; HELLO_WORLD.len()]))
@@ -83,7 +78,7 @@ fn start_client(addr: &SocketAddr, domain: &str,
             Ok(())
         });
 
-    core.run(done)
+    done.wait()
 }
 
 

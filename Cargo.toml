@@ -22,7 +22,8 @@ webpki = "0.18.0-alpha"
 tokio-proto = { version = "0.1.1", optional = true }
 
 [dev-dependencies]
-tokio-core = "0.1.9"
+tokio-core = "0.1"
+tokio = "0.1"
 clap = "2.26"
 webpki-roots = "0.14"
 

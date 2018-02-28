@@ -2,7 +2,7 @@ extern crate clap;
 extern crate rustls;
 extern crate futures;
 extern crate tokio_io;
-extern crate tokio_core;
+extern crate tokio;
 extern crate webpki_roots;
 extern crate tokio_rustls;
 
@@ -14,8 +14,8 @@ use futures::{ Future, Stream };
 use rustls::{ Certificate, NoClientAuth, PrivateKey, ServerConfig };
 use rustls::internal::pemfile::{ certs, rsa_private_keys };
 use tokio_io::{ io, AsyncRead };
-use tokio_core::net::TcpListener;
-use tokio_core::reactor::Core;
+use tokio::net::TcpListener;
+use tokio::executor::current_thread;
 use clap::{ App, Arg };
 use tokio_rustls::ServerConfigExt;
 
@@ -48,27 +48,28 @@ fn main() {
     let key_file = matches.value_of("key").unwrap();
     let flag_echo = matches.occurrences_of("echo") > 0;
 
-    let mut core = Core::new().unwrap();
-    let handle = core.handle();
-
     let mut config = ServerConfig::new(NoClientAuth::new());
     config.set_single_cert(load_certs(cert_file), load_keys(key_file).remove(0));
     let arc_config = Arc::new(config);
 
-    let socket = TcpListener::bind(&addr, &handle).unwrap();
+    let socket = TcpListener::bind(&addr).unwrap();
     let done = socket.incoming()
-        .for_each(|(stream, addr)| if flag_echo {
+        .for_each(move |stream| if flag_echo {
+            let addr = stream.peer_addr().ok();
+            let addr2 = addr.clone();
             let done = arc_config.accept_async(stream)
                 .and_then(|stream| {
                     let (reader, writer) = stream.split();
                     io::copy(reader, writer)
                 })
-                .map(move |(n, ..)| println!("Echo: {} - {}", n, addr))
-                .map_err(move |err| println!("Error: {:?} - {}", err, addr));
-            handle.spawn(done);
+                .map(move |(n, ..)| println!("Echo: {} - {:?}", n, addr))
+                .map_err(move |err| println!("Error: {:?} - {:?}", err, addr2));
+            current_thread::spawn(done);
 
             Ok(())
         } else {
+            let addr = stream.peer_addr().ok();
+            let addr2 = addr.clone();
             let done = arc_config.accept_async(stream)
                 .and_then(|stream| io::write_all(
                     stream,
@@ -79,12 +80,12 @@ fn main() {
                     Hello world!"[..]
                 ))
                 .and_then(|(stream, _)| io::flush(stream))
-                .map(move |_| println!("Accept: {}", addr))
-                .map_err(move |err| println!("Error: {:?} - {}", err, addr));
-            handle.spawn(done);
+                .map(move |_| println!("Accept: {:?}", addr))
+                .map_err(move |err| println!("Error: {:?} - {:?}", err, addr2));
+            current_thread::spawn(done);
 
             Ok(())
         });
 
-    core.run(done).unwrap();
+    current_thread::run(|_| current_thread::spawn(done.map_err(drop)));
 }
