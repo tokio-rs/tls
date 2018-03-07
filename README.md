@@ -12,6 +12,7 @@ Asynchronous TLS/SSL streams for [Tokio](https://tokio.rs/) using
 ### Basic Structure of a Client
 
 ```rust
+use webpki::DNSNameRef;
 use rustls::ClientConfig;
 use tokio_rustls::ClientConfigExt;
 
@@ -20,9 +21,10 @@ use tokio_rustls::ClientConfigExt;
 let mut config = ClientConfig::new();
 config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
 let config = Arc::new(config);
+let domain = DNSNameRef::try_from_ascii_str("www.rust-lang.org").unwrap();
 
-TcpStream::connect(&addr, &handle)
-	.and_then(|socket| config.connect_async("www.rust-lang.org", socket))
+TcpStream::connect(&addr)
+	.and_then(|socket| config.connect_async(domain, socket))
 
 // ...
 ```
