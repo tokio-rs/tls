@@ -1,17 +1,14 @@
 //! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
 
-
-#[cfg_attr(feature = "tokio-proto", macro_use)] extern crate futures;
-#[macro_use] extern crate tokio_io;
+extern crate futures;
+extern crate tokio;
 extern crate rustls;
 extern crate webpki;
-
-pub mod proto;
 
 use std::io;
 use std::sync::Arc;
 use futures::{ Future, Poll, Async };
-use tokio_io::{ AsyncRead, AsyncWrite };
+use futures::task::Context;
 use rustls::{
     Session, ClientSession, ServerSession,
     ClientConfig, ServerConfig
@@ -22,14 +19,14 @@ use rustls::{
 pub trait ClientConfigExt {
     fn connect_async<S>(&self, domain: webpki::DNSNameRef, stream: S)
         -> ConnectAsync<S>
-        where S: AsyncRead + AsyncWrite;
+        where S: io::Read + io::Write;
 }
 
 /// Extension trait for the `Arc<ServerConfig>` type in the `rustls` crate.
 pub trait ServerConfigExt {
     fn accept_async<S>(&self, stream: S)
         -> AcceptAsync<S>
-        where S: AsyncRead + AsyncWrite;
+        where S: io::Read + io::Write;
 }
 
 
@@ -45,7 +42,7 @@ pub struct AcceptAsync<S>(MidHandshake<S, ServerSession>);
 impl ClientConfigExt for Arc<ClientConfig> {
     fn connect_async<S>(&self, domain: webpki::DNSNameRef, stream: S)
         -> ConnectAsync<S>
-        where S: AsyncRead + AsyncWrite
+        where S: io::Read + io::Write
     {
         connect_async_with_session(stream, ClientSession::new(self, domain))
     }
@@ -54,7 +51,7 @@ impl ClientConfigExt for Arc<ClientConfig> {
 #[inline]
 pub fn connect_async_with_session<S>(stream: S, session: ClientSession)
     -> ConnectAsync<S>
-    where S: AsyncRead + AsyncWrite
+    where S: io::Read + io::Write
 {
     ConnectAsync(MidHandshake {
         inner: Some(TlsStream::new(stream, session))
@@ -64,7 +61,7 @@ pub fn connect_async_with_session<S>(stream: S, session: ClientSession)
 impl ServerConfigExt for Arc<ServerConfig> {
     fn accept_async<S>(&self, stream: S)
         -> AcceptAsync<S>
-        where S: AsyncRead + AsyncWrite
+        where S: io::Read + io::Write
     {
         accept_async_with_session(stream, ServerSession::new(self))
     }
@@ -73,28 +70,28 @@ impl ServerConfigExt for Arc<ServerConfig> {
 #[inline]
 pub fn accept_async_with_session<S>(stream: S, session: ServerSession)
     -> AcceptAsync<S>
-    where S: AsyncRead + AsyncWrite
+    where S: io::Read + io::Write
 {
     AcceptAsync(MidHandshake {
         inner: Some(TlsStream::new(stream, session))
     })
 }
 
-impl<S: AsyncRead + AsyncWrite> Future for ConnectAsync<S> {
+impl<S: io::Read + io::Write> Future for ConnectAsync<S> {
     type Item = TlsStream<S, ClientSession>;
     type Error = io::Error;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.0.poll()
+    fn poll(&mut self, ctx: &mut Context) -> Poll<Self::Item, Self::Error> {
+        self.0.poll(ctx)
     }
 }
 
-impl<S: AsyncRead + AsyncWrite> Future for AcceptAsync<S> {
+impl<S: io::Read + io::Write> Future for AcceptAsync<S> {
     type Item = TlsStream<S, ServerSession>;
     type Error = io::Error;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.0.poll()
+    fn poll(&mut self, ctx: &mut Context) -> Poll<Self::Item, Self::Error> {
+        self.0.poll(ctx)
     }
 }
 
@@ -104,12 +101,12 @@ struct MidHandshake<S, C> {
 }
 
 impl<S, C> Future for MidHandshake<S, C>
-    where S: AsyncRead + AsyncWrite, C: Session
+    where S: io::Read + io::Write, C: Session
 {
     type Item = TlsStream<S, C>;
     type Error = io::Error;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(&mut self, _: &mut Context) -> Poll<Self::Item, Self::Error> {
         loop {
             let stream = self.inner.as_mut().unwrap();
             if !stream.session.is_handshaking() { break };
@@ -121,7 +118,7 @@ impl<S, C> Future for MidHandshake<S, C>
                     (..) => break
                 },
                 Err(e) => match (e.kind(), stream.session.is_handshaking()) {
-                    (io::ErrorKind::WouldBlock, true) => return Ok(Async::NotReady),
+                    (io::ErrorKind::WouldBlock, true) => return Ok(Async::Pending),
                     (io::ErrorKind::WouldBlock, false) => break,
                     (..) => return Err(e)
                 }
@@ -154,7 +151,7 @@ impl<S, C> TlsStream<S, C> {
 }
 
 impl<S, C> TlsStream<S, C>
-    where S: AsyncRead + AsyncWrite, C: Session
+    where S: io::Read + io::Write, C: Session
 {
     #[inline]
     pub fn new(io: S, session: C) -> TlsStream<S, C> {
@@ -214,7 +211,7 @@ impl<S, C> TlsStream<S, C>
 }
 
 impl<S, C> io::Read for TlsStream<S, C>
-    where S: AsyncRead + AsyncWrite, C: Session
+    where S: io::Read + io::Write, C: Session
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         loop {
@@ -233,7 +230,7 @@ impl<S, C> io::Read for TlsStream<S, C>
 }
 
 impl<S, C> io::Write for TlsStream<S, C>
-    where S: AsyncRead + AsyncWrite, C: Session
+    where S: io::Read + io::Write, C: Session
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if buf.is_empty() {
@@ -272,26 +269,40 @@ impl<S, C> io::Write for TlsStream<S, C>
     }
 }
 
-impl<S, C> AsyncRead for TlsStream<S, C>
-    where
-        S: AsyncRead + AsyncWrite,
-        C: Session
-{}
 
-impl<S, C> AsyncWrite for TlsStream<S, C>
-    where
-        S: AsyncRead + AsyncWrite,
-        C: Session
-{
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
-        if !self.is_shutdown {
-            self.session.send_close_notify();
-            self.is_shutdown = true;
+mod tokio_impl {
+    use super::*;
+    use tokio::io::{ AsyncRead, AsyncWrite };
+    use tokio::prelude::Poll;
+
+    impl<S, C> AsyncRead for TlsStream<S, C>
+        where
+            S: AsyncRead + AsyncWrite,
+            C: Session
+    {}
+
+    impl<S, C> AsyncWrite for TlsStream<S, C>
+        where
+            S: AsyncRead + AsyncWrite,
+            C: Session
+    {
+        fn shutdown(&mut self) -> Poll<(), io::Error> {
+            if !self.is_shutdown {
+                self.session.send_close_notify();
+                self.is_shutdown = true;
+            }
+            while self.session.wants_write() {
+                self.session.write_tls(&mut self.io)?;
+            }
+            self.io.flush()?;
+            self.io.shutdown()
         }
-        while self.session.wants_write() {
-            try_nb!(self.session.write_tls(&mut self.io));
-        }
-        try_nb!(self.io.flush());
-        self.io.shutdown()
     }
+}
+
+mod futures_impl {
+    use super::*;
+    use futures::io::{ AsyncRead, AsyncWrite };
+
+    // TODO
 }

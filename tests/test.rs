@@ -1,7 +1,6 @@
 extern crate rustls;
 extern crate futures;
 extern crate tokio;
-extern crate tokio_io;
 extern crate tokio_rustls;
 extern crate webpki;
 
@@ -10,10 +9,9 @@ use std::io::{ BufReader, Cursor };
 use std::sync::Arc;
 use std::sync::mpsc::channel;
 use std::net::{ SocketAddr, IpAddr, Ipv4Addr };
-use futures::{ Future, Stream };
-use tokio::executor::current_thread;
+use futures::{ FutureExt, StreamExt };
 use tokio::net::{ TcpListener, TcpStream };
-use tokio_io::io as aio;
+use tokio::io as aio;
 use rustls::{ Certificate, PrivateKey, ServerConfig, ClientConfig };
 use rustls::internal::pemfile::{ certs, rsa_private_keys };
 use tokio_rustls::{ ClientConfigExt, ServerConfigExt };
@@ -48,13 +46,12 @@ fn start_server(cert: Vec<Certificate>, rsa: PrivateKey) -> SocketAddr {
                     .map(drop)
                     .map_err(drop);
 
-                current_thread::spawn(done);
+                tokio::spawn2(done);
                 Ok(())
             })
-            .map(drop)
-            .map_err(drop);
+            .then(|_| Ok(()));
 
-        current_thread::run(|_| current_thread::spawn(done));
+        tokio::runtime::run2(done);
     });
 
     recv.recv().unwrap()
