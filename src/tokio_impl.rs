@@ -1,7 +1,9 @@
+extern crate tokio;
+
 use super::*;
-use tokio::prelude::*;
-use tokio::io::{ AsyncRead, AsyncWrite };
-use tokio::prelude::Poll;
+use self::tokio::prelude::*;
+use self::tokio::io::{ AsyncRead, AsyncWrite };
+use self::tokio::prelude::Poll;
 
 
 impl<S: AsyncRead + AsyncWrite> Future for ConnectAsync<S> {
@@ -67,10 +69,7 @@ impl<S, C> AsyncWrite for TlsStream<S, C>
             self.session.send_close_notify();
             self.is_shutdown = true;
         }
-        while self.session.wants_write() {
-            self.session.write_tls(&mut self.io)?;
-        }
-        self.io.flush()?;
+        while self.do_write()? {};
         self.io.shutdown()
     }
 }

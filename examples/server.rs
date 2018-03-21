@@ -1,7 +1,5 @@
 extern crate clap;
 extern crate rustls;
-extern crate futures;
-extern crate tokio_io;
 extern crate tokio;
 extern crate webpki_roots;
 extern crate tokio_rustls;
@@ -10,12 +8,11 @@ use std::sync::Arc;
 use std::net::ToSocketAddrs;
 use std::io::BufReader;
 use std::fs::File;
-use futures::{ Future, Stream };
 use rustls::{ Certificate, NoClientAuth, PrivateKey, ServerConfig };
 use rustls::internal::pemfile::{ certs, rsa_private_keys };
-use tokio_io::{ io, AsyncRead };
+use tokio::prelude::{ Future, Stream };
+use tokio::io::{ self, AsyncRead };
 use tokio::net::TcpListener;
-use tokio::executor::current_thread;
 use clap::{ App, Arg };
 use tokio_rustls::ServerConfigExt;
 
@@ -64,7 +61,7 @@ fn main() {
                 })
                 .map(move |(n, ..)| println!("Echo: {} - {:?}", n, addr))
                 .map_err(move |err| println!("Error: {:?} - {:?}", err, addr2));
-            current_thread::spawn(done);
+            tokio::spawn(done);
 
             Ok(())
         } else {
@@ -82,10 +79,10 @@ fn main() {
                 .and_then(|(stream, _)| io::flush(stream))
                 .map(move |_| println!("Accept: {:?}", addr))
                 .map_err(move |err| println!("Error: {:?} - {:?}", err, addr2));
-            current_thread::spawn(done);
+            tokio::spawn(done);
 
             Ok(())
         });
 
-    current_thread::run(|_| current_thread::spawn(done.map_err(drop)));
+    tokio::run(done.map_err(drop));
 }
