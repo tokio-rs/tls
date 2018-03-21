@@ -9,7 +9,8 @@ use std::io::{ BufReader, Cursor };
 use std::sync::Arc;
 use std::sync::mpsc::channel;
 use std::net::{ SocketAddr, IpAddr, Ipv4Addr };
-use futures::{ FutureExt, StreamExt };
+use tokio::prelude::*;
+// use futures::{ FutureExt, StreamExt };
 use tokio::net::{ TcpListener, TcpStream };
 use tokio::io as aio;
 use rustls::{ Certificate, PrivateKey, ServerConfig, ClientConfig };
@@ -46,12 +47,12 @@ fn start_server(cert: Vec<Certificate>, rsa: PrivateKey) -> SocketAddr {
                     .map(drop)
                     .map_err(drop);
 
-                tokio::spawn2(done);
+                tokio::spawn(done);
                 Ok(())
             })
             .then(|_| Ok(()));
 
-        tokio::runtime::run2(done);
+        tokio::runtime::run(done);
     });
 
     recv.recv().unwrap()
