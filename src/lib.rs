@@ -4,7 +4,7 @@ extern crate rustls;
 extern crate webpki;
 
 #[cfg(feature = "tokio")] mod tokio_impl;
-#[cfg(feature = "futures")] mod futures_impl;
+#[cfg(feature = "unstable-futures")] mod futures_impl;
 
 use std::io;
 use std::sync::Arc;
@@ -101,25 +101,6 @@ impl<S, C> TlsStream<S, C> {
     }
 }
 
-
-macro_rules! try_wouldblock {
-    ( continue $r:expr ) => {
-        match $r {
-            Ok(true) => continue,
-            Ok(false) => false,
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => true,
-            Err(e) => return Err(e)
-        }
-    };
-    ( ignore $r:expr ) => {
-        match $r {
-            Ok(_) => (),
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => (),
-            Err(e) => return Err(e)
-        }
-    };
-}
-
 impl<S, C> TlsStream<S, C>
     where S: io::Read + io::Write, C: Session
 {
@@ -133,19 +114,19 @@ impl<S, C> TlsStream<S, C>
         }
     }
 
-    fn do_read(&mut self) -> io::Result<bool> {
-        if !self.eof && self.session.wants_read() {
-            if self.session.read_tls(&mut self.io)? == 0 {
-                self.eof = true;
+    fn do_read(session: &mut C, io: &mut S, eof: &mut bool) -> io::Result<bool> {
+        if !*eof && session.wants_read() {
+            if session.read_tls(io)? == 0 {
+                *eof = true;
             }
 
-            if let Err(err) = self.session.process_new_packets() {
+            if let Err(err) = session.process_new_packets() {
                 // flush queued messages before returning an Err in
                 // order to send alerts instead of abruptly closing
                 // the socket
-                if self.session.wants_write() {
+                if session.wants_write() {
                     // ignore result to avoid masking original error
-                    let _ = self.session.write_tls(&mut self.io);
+                    let _ = session.write_tls(io);
                 }
                 return Err(io::Error::new(io::ErrorKind::InvalidData, err));
             }
@@ -156,9 +137,9 @@ impl<S, C> TlsStream<S, C>
         }
     }
 
-    fn do_write(&mut self) -> io::Result<bool> {
-        if self.session.wants_write() {
-            self.session.write_tls(&mut self.io)?;
+    fn do_write(session: &mut C, io: &mut S) -> io::Result<bool> {
+        if session.wants_write() {
+            session.write_tls(io)?;
 
             Ok(true)
         } else {
@@ -167,10 +148,21 @@ impl<S, C> TlsStream<S, C>
     }
 
     #[inline]
-    pub fn do_io(&mut self) -> io::Result<()> {
+    pub fn do_io(session: &mut C, io: &mut S, eof: &mut bool) -> io::Result<()> {
+        macro_rules! try_wouldblock {
+            ( $r:expr ) => {
+                match $r {
+                    Ok(true) => continue,
+                    Ok(false) => false,
+                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => true,
+                    Err(e) => return Err(e)
+                }
+            };
+        }
+
         loop {
-            let write_would_block = try_wouldblock!(continue self.do_write());
-            let read_would_block = try_wouldblock!(continue self.do_read());
+            let write_would_block = try_wouldblock!(Self::do_write(session, io));
+            let read_would_block = try_wouldblock!(Self::do_read(session, io, eof));
 
             if write_would_block || read_would_block {
                 return Err(io::Error::from(io::ErrorKind::WouldBlock));
@@ -181,18 +173,28 @@ impl<S, C> TlsStream<S, C>
     }
 }
 
+macro_rules! try_ignore {
+    ( $r:expr ) => {
+        match $r {
+            Ok(_) => (),
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => (),
+            Err(e) => return Err(e)
+        }
+    }
+}
+
 impl<S, C> io::Read for TlsStream<S, C>
     where S: io::Read + io::Write, C: Session
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        try_wouldblock!(ignore self.do_io());
+        try_ignore!(Self::do_io(&mut self.session, &mut self.io, &mut self.eof));
 
         loop {
             match self.session.read(buf) {
-                Ok(0) if !self.eof => while self.do_read()? {},
+                Ok(0) if !self.eof => while Self::do_read(&mut self.session, &mut self.io, &mut self.eof)? {},
                 Ok(n) => return Ok(n),
                 Err(e) => if e.kind() == io::ErrorKind::ConnectionAborted {
-                    try_wouldblock!(ignore self.do_read());
+                    try_ignore!(Self::do_read(&mut self.session, &mut self.io, &mut self.eof));
                     return if self.eof { Ok(0) } else { Err(e) }
                 } else {
                     return Err(e)
@@ -206,12 +208,12 @@ impl<S, C> io::Write for TlsStream<S, C>
     where S: io::Read + io::Write, C: Session
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        try_wouldblock!(ignore self.do_io());
+        try_ignore!(Self::do_io(&mut self.session, &mut self.io, &mut self.eof));
 
         let mut wlen = self.session.write(buf)?;
 
         loop {
-            match self.do_write() {
+            match Self::do_write(&mut self.session, &mut self.io) {
                 Ok(true) => continue,
                 Ok(false) if wlen == 0 => (),
                 Ok(false) => break,
@@ -234,7 +236,7 @@ impl<S, C> io::Write for TlsStream<S, C>
 
     fn flush(&mut self) -> io::Result<()> {
         self.session.flush()?;
-        while self.do_write()? {};
+        while Self::do_write(&mut self.session, &mut self.io)? {};
         self.io.flush()
     }
 }

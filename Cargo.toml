@@ -22,8 +22,15 @@ webpki = "0.18.0-alpha"
 
 [dev-dependencies]
 tokio = "0.1"
+tokio-io = "0.1"
+# tokio-core = "0.1"
+# tokio-file-unix = "0.4"
 clap = "2.26"
 webpki-roots = "0.14"
 
 [features]
-default = [ "futures", "tokio" ]
+unstable-futures = [ "futures", "tokio/unstable-futures" ]
+default = [ "unstable-futures", "tokio" ]
+
+[patch.crates-io]
+tokio = { path = "../ref/tokio" }

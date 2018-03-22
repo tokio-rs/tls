@@ -1,7 +1,6 @@
 extern crate clap;
 extern crate rustls;
-extern crate futures;
-extern crate tokio_io;
+extern crate tokio;
 extern crate tokio_core;
 extern crate webpki;
 extern crate webpki_roots;
@@ -14,16 +13,16 @@ use std::sync::Arc;
 use std::net::ToSocketAddrs;
 use std::io::{ BufReader, stdout, stdin };
 use std::fs;
-use futures::Future;
+use tokio::io;
+use tokio::prelude::*;
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Core;
-use tokio_io::io;
 use clap::{ App, Arg };
 use rustls::ClientConfig;
 use tokio_rustls::ClientConfigExt;
 
 #[cfg(unix)]
-use tokio_io::AsyncRead;
+use tokio::io::AsyncRead;
 
 #[cfg(unix)]
 use tokio_file_unix::{ StdFile, File };
