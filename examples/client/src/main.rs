@@ -15,17 +15,9 @@ use std::io::{ BufReader, stdout, stdin };
 use std::fs;
 use tokio::io;
 use tokio::prelude::*;
-use tokio_core::net::TcpStream;
-use tokio_core::reactor::Core;
 use clap::{ App, Arg };
 use rustls::ClientConfig;
 use tokio_rustls::ClientConfigExt;
-
-#[cfg(unix)]
-use tokio::io::AsyncRead;
-
-#[cfg(unix)]
-use tokio_file_unix::{ StdFile, File };
 
 #[cfg(not(unix))]
 use std::io::{Read, Write};
@@ -44,17 +36,13 @@ fn main() {
     let matches = app().get_matches();
 
     let host = matches.value_of("host").unwrap();
-    let port = if let Some(port) = matches.value_of("port") {
-        port.parse().unwrap()
-    } else {
-        443
-    };
+    let port = matches.value_of("port")
+        .map(|port| port.parse().unwrap())
+        .unwrap_or(443);
     let domain = matches.value_of("domain").unwrap_or(host);
     let cafile = matches.value_of("cafile");
     let text = format!("GET / HTTP/1.0\r\nHost: {}\r\n\r\n", domain);
 
-    let mut core = Core::new().unwrap();
-    let handle = core.handle();
     let addr = (host, port)
         .to_socket_addrs().unwrap()
         .next().unwrap();
@@ -67,55 +55,60 @@ fn main() {
         config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
     }
     let arc_config = Arc::new(config);
-
     let domain = webpki::DNSNameRef::try_from_ascii_str(domain).unwrap();
 
-    let socket = TcpStream::connect(&addr, &handle);
-
     // Use async non-blocking I/O for stdin/stdout on Unixy platforms.
-
     #[cfg(unix)]
-    let stdin = stdin();
+    {
+        use tokio::io::AsyncRead;
+        use tokio_core::reactor::Core;
+        use tokio_core::net::TcpStream;
+        use tokio_file_unix::{ StdFile, File };
 
-    #[cfg(unix)]
-    let stdin = File::new_nb(StdFile(stdin.lock())).unwrap()
-        .into_io(&handle).unwrap();
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        let socket = TcpStream::connect(&addr, &handle);
 
-    #[cfg(unix)]
-    let stdout = stdout();
+        let stdin = stdin();
+        let stdin = File::new_nb(StdFile(stdin.lock())).unwrap()
+            .into_io(&handle).unwrap();
 
-    #[cfg(unix)]
-    let stdout = File::new_nb(StdFile(stdout.lock())).unwrap()
-        .into_io(&handle).unwrap();
+        let stdout = stdout();
+        let stdout = File::new_nb(StdFile(stdout.lock())).unwrap()
+            .into_io(&handle).unwrap();
 
-    #[cfg(unix)]
-    let resp = socket
-        .and_then(|stream| arc_config.connect_async(domain, stream))
-        .and_then(|stream| io::write_all(stream, text.as_bytes()))
-        .and_then(|(stream, _)| {
-            let (r, w) = stream.split();
-            io::copy(r, stdout)
-                .map(|_| ())
-                .select(io::copy(stdin, w).map(|_| ()))
-                .map_err(|(e, _)| e)
-        });
+        let resp = socket
+            .and_then(|stream| arc_config.connect_async(domain, stream))
+            .and_then(|stream| io::write_all(stream, text.as_bytes()))
+            .and_then(|(stream, _)| {
+                let (r, w) = stream.split();
+                io::copy(r, stdout)
+                    .map(|_| ())
+                    .select(io::copy(stdin, w).map(|_| ()))
+                    .map_err(|(e, _)| e)
+            });
+
+        core.run(resp).unwrap();
+    }
 
     // XXX: For now, just use blocking I/O for stdin/stdout on other platforms.
     // The network I/O will still be asynchronous and non-blocking.
-
     #[cfg(not(unix))]
-    let mut input = Vec::new();
+    {
+        use tokio::net::TcpStream;
 
-    #[cfg(not(unix))]
-    stdin().read_to_end(&mut input).unwrap();
+        let socket = TcpStream::connect(&addr);
 
-    #[cfg(not(unix))]
-    let resp = socket
-        .and_then(|stream| arc_config.connect_async(domain, stream))
-        .and_then(|stream| io::write_all(stream, text.as_bytes()))
-        .and_then(|(stream, _)| io::write_all(stream, &input))
-        .and_then(|(stream, _)| io::read_to_end(stream, Vec::new()))
-        .and_then(|(_, output)| stdout().write_all(&output));
+        let mut input = Vec::new();
+        stdin().read_to_end(&mut input).unwrap();
 
-    core.run(resp).unwrap();
+        let resp = socket
+            .and_then(|stream| arc_config.connect_async(domain, stream))
+            .and_then(|stream| io::write_all(stream, text.as_bytes()))
+            .and_then(|(stream, _)| io::write_all(stream, &input))
+            .and_then(|(stream, _)| io::read_to_end(stream, Vec::new()))
+            .and_then(|(_, output)| stdout().write_all(&output));
+
+        resp.wait().unwrap();
+    }
 }
