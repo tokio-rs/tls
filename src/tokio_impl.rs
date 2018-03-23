@@ -35,17 +35,10 @@ impl<S, C> Future for MidHandshake<S, C>
             let stream = self.inner.as_mut().unwrap();
             if !stream.session.is_handshaking() { break };
 
-            match TlsStream::do_io(&mut stream.session, &mut stream.io, &mut stream.eof) {
-                Ok(()) => match (stream.eof, stream.session.is_handshaking()) {
-                    (true, true) => return Err(io::Error::from(io::ErrorKind::UnexpectedEof)),
-                    (false, true) => continue,
-                    (..) => break
-                },
-                Err(e) => match (e.kind(), stream.session.is_handshaking()) {
-                    (io::ErrorKind::WouldBlock, true) => return Ok(Async::NotReady),
-                    (io::ErrorKind::WouldBlock, false) => break,
-                    (..) => return Err(e)
-                }
+            match stream.session.complete_io(&mut stream.io) {
+                Ok(_) => (),
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::NotReady),
+                Err(e) => return Err(e)
             }
         }
 

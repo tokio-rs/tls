@@ -10,7 +10,8 @@ use std::io;
 use std::sync::Arc;
 use rustls::{
     Session, ClientSession, ServerSession,
-    ClientConfig, ServerConfig
+    ClientConfig, ServerConfig,
+    Stream
 };
 
 
@@ -92,10 +93,12 @@ pub struct TlsStream<S, C> {
 }
 
 impl<S, C> TlsStream<S, C> {
+    #[inline]
     pub fn get_ref(&self) -> (&S, &C) {
         (&self.io, &self.session)
     }
 
+    #[inline]
     pub fn get_mut(&mut self) -> (&mut S, &mut C) {
         (&mut self.io, &mut self.session)
     }
@@ -187,19 +190,13 @@ impl<S, C> io::Read for TlsStream<S, C>
     where S: io::Read + io::Write, C: Session
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        try_ignore!(Self::do_io(&mut self.session, &mut self.io, &mut self.eof));
+        let (io, session) = self.get_mut();
+        let mut stream = Stream::new(session, io);
 
-        loop {
-            match self.session.read(buf) {
-                Ok(0) if !self.eof => while Self::do_read(&mut self.session, &mut self.io, &mut self.eof)? {},
-                Ok(n) => return Ok(n),
-                Err(e) => if e.kind() == io::ErrorKind::ConnectionAborted {
-                    try_ignore!(Self::do_read(&mut self.session, &mut self.io, &mut self.eof));
-                    return if self.eof { Ok(0) } else { Err(e) }
-                } else {
-                    return Err(e)
-                }
-            }
+        match stream.read(buf) {
+            Ok(n) => Ok(n),
+            Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => Ok(0),
+            Err(e) => Err(e)
         }
     }
 }
@@ -208,35 +205,19 @@ impl<S, C> io::Write for TlsStream<S, C>
     where S: io::Read + io::Write, C: Session
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        try_ignore!(Self::do_io(&mut self.session, &mut self.io, &mut self.eof));
+        let (io, session) = self.get_mut();
+        let mut stream = Stream::new(session, io);
 
-        let mut wlen = self.session.write(buf)?;
-
-        loop {
-            match Self::do_write(&mut self.session, &mut self.io) {
-                Ok(true) => continue,
-                Ok(false) if wlen == 0 => (),
-                Ok(false) => break,
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock =>
-                    if wlen == 0 {
-                        // Both rustls buffer and IO buffer are blocking.
-                        return Err(io::Error::from(io::ErrorKind::WouldBlock));
-                    } else {
-                        continue
-                    },
-                Err(e) => return Err(e)
-            }
-
-            assert_eq!(wlen, 0);
-            wlen = self.session.write(buf)?;
-        }
-
-        Ok(wlen)
+        stream.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.session.flush()?;
-        while Self::do_write(&mut self.session, &mut self.io)? {};
+        {
+            let (io, session) = self.get_mut();
+            let mut stream = Stream::new(session, io);
+            stream.flush()?;
+        }
+
         self.io.flush()
     }
 }

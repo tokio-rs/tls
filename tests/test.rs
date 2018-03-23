@@ -59,6 +59,7 @@ fn start_server(cert: Vec<Certificate>, rsa: PrivateKey) -> SocketAddr {
     recv.recv().unwrap()
 }
 
+#[cfg(feature = "unstable-futures")]
 fn start_server2(cert: Vec<Certificate>, rsa: PrivateKey) -> SocketAddr {
     use futures::{ FutureExt, StreamExt };
     use futures::io::{ AsyncReadExt, AsyncWriteExt };
@@ -136,16 +137,9 @@ fn start_client2(addr: &SocketAddr, domain: &str, chain: Option<BufReader<Cursor
 
     let done = TcpStream::connect(addr)
         .and_then(|stream| config.connect_async(domain, stream))
-        .and_then(|stream| {
-            eprintln!("WRITE: {:?}", stream);
-            stream.write_all(HELLO_WORLD)
-        })
-        .and_then(|(stream, _)| {
-            eprintln!("READ: {:?}", stream);
-            stream.read_exact(vec![0; HELLO_WORLD.len()])
-        })
+        .and_then(|stream| stream.write_all(HELLO_WORLD))
+        .and_then(|(stream, _)| stream.read_exact(vec![0; HELLO_WORLD.len()]))
         .and_then(|(stream, buf)| {
-            eprintln!("OK: {:?}", stream);
             assert_eq!(buf, HELLO_WORLD);
             Ok(())
         });
