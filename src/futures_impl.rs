@@ -100,13 +100,27 @@ impl<S, C> AsyncRead for TlsStream<S, C>
         C: Session
 {
     fn poll_read(&mut self, ctx: &mut Context, buf: &mut [u8]) -> Poll<usize, Error> {
-        let (io, session) = self.get_mut();
-        let mut taskio = TaskStream { io, task: ctx };
-        let mut stream = Stream::new(session, &mut taskio);
+        if self.eof {
+            return Ok(Async::Ready(0));
+        }
 
-        match io::Read::read(&mut stream, buf) {
+        // TODO nll
+        let result = {
+            let (io, session) = self.get_mut();
+            let mut taskio = TaskStream { io, task: ctx };
+            let mut stream = Stream::new(session, &mut taskio);
+            io::Read::read(&mut stream, buf)
+        };
+
+        match result {
+            Ok(0) => { self.eof = true; Ok(Async::Ready(0)) },
             Ok(n) => Ok(Async::Ready(n)),
-            Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => Ok(Async::Ready(0)),
+            Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => {
+                self.eof = true;
+                self.is_shutdown = true;
+                self.session.send_close_notify();
+                Ok(Async::Ready(0))
+            },
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => Ok(Async::Pending),
             Err(e) => Err(e)
         }

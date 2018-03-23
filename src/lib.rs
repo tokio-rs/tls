@@ -56,7 +56,7 @@ pub fn connect_async_with_session<S>(stream: S, session: ClientSession)
     where S: io::Read + io::Write
 {
     ConnectAsync(MidHandshake {
-        inner: Some(TlsStream { session, io: stream, is_shutdown: false })
+        inner: Some(TlsStream { session, io: stream, is_shutdown: false, eof: false })
     })
 }
 
@@ -77,7 +77,7 @@ pub fn accept_async_with_session<S>(stream: S, session: ServerSession)
     where S: io::Read + io::Write
 {
     AcceptAsync(MidHandshake {
-        inner: Some(TlsStream { session, io: stream, is_shutdown: false })
+        inner: Some(TlsStream { session, io: stream, is_shutdown: false, eof: false })
     })
 }
 
@@ -92,6 +92,7 @@ struct MidHandshake<S, C> {
 #[derive(Debug)]
 pub struct TlsStream<S, C> {
     is_shutdown: bool,
+    eof: bool,
     io: S,
     session: C
 }
@@ -112,12 +113,26 @@ impl<S, C> io::Read for TlsStream<S, C>
     where S: io::Read + io::Write, C: Session
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let (io, session) = self.get_mut();
-        let mut stream = Stream::new(session, io);
+        if self.eof {
+            return Ok(0);
+        }
 
-        match stream.read(buf) {
+        // TODO nll
+        let result = {
+            let (io, session) = self.get_mut();
+            let mut stream = Stream::new(session, io);
+            stream.read(buf)
+        };
+
+        match result {
+            Ok(0) => { self.eof = true; Ok(0) },
             Ok(n) => Ok(n),
-            Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => Ok(0),
+            Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => {
+                self.eof = true;
+                self.is_shutdown = true;
+                self.session.send_close_notify();
+                Ok(0)
+            },
             Err(e) => Err(e)
         }
     }
