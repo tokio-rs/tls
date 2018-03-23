@@ -1,7 +1,6 @@
 extern crate clap;
 extern crate rustls;
 extern crate tokio;
-extern crate webpki_roots;
 extern crate tokio_rustls;
 
 use std::sync::Arc;
