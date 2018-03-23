@@ -80,19 +80,13 @@ impl<S, C> Future for MidHandshake<S, C>
             let stream = self.inner.as_mut().unwrap();
             if !stream.session.is_handshaking() { break };
 
-            let mut taskio = TaskStream { io: &mut stream.io, task: ctx };
+            let (io, session) = stream.get_mut();
+            let mut taskio = TaskStream { io, task: ctx };
 
-            match TlsStream::do_io(&mut stream.session, &mut taskio, &mut stream.eof) {
-                Ok(()) => match (stream.eof, stream.session.is_handshaking()) {
-                    (true, true) => return Err(io::ErrorKind::UnexpectedEof.into()),
-                    (false, true) => continue,
-                    (..) => break
-                },
-                Err(e) => match (e.kind(), stream.session.is_handshaking()) {
-                    (io::ErrorKind::WouldBlock, true) => return Ok(Async::Pending),
-                    (io::ErrorKind::WouldBlock, false) => break,
-                    (..) => return Err(e)
-                }
+            match session.complete_io(&mut taskio) {
+                Ok(_) => (),
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::Pending),
+                Err(e) => return Err(e)
             }
         }
 
@@ -106,9 +100,16 @@ impl<S, C> AsyncRead for TlsStream<S, C>
         C: Session
 {
     fn poll_read(&mut self, ctx: &mut Context, buf: &mut [u8]) -> Poll<usize, Error> {
-        let mut taskio = TaskStream { io: &mut self.io, task: ctx };
-        // FIXME TlsStream + TaskStream
-        async!(from io::Read::read(&mut taskio, buf))
+        let (io, session) = self.get_mut();
+        let mut taskio = TaskStream { io, task: ctx };
+        let mut stream = Stream::new(session, &mut taskio);
+
+        match io::Read::read(&mut stream, buf) {
+            Ok(n) => Ok(Async::Ready(n)),
+            Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => Ok(Async::Ready(0)),
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => Ok(Async::Pending),
+            Err(e) => Err(e)
+        }
     }
 }
 
@@ -118,15 +119,19 @@ impl<S, C> AsyncWrite for TlsStream<S, C>
         C: Session
 {
     fn poll_write(&mut self, ctx: &mut Context, buf: &[u8]) -> Poll<usize, Error> {
-        let mut taskio = TaskStream { io: &mut self.io, task: ctx };
-        // FIXME TlsStream + TaskStream
-        async!(from io::Write::write(&mut taskio, buf))
+        let (io, session) = self.get_mut();
+        let mut taskio = TaskStream { io, task: ctx };
+        let mut stream = Stream::new(session, &mut taskio);
+
+        async!(from io::Write::write(&mut stream, buf))
     }
 
     fn poll_flush(&mut self, ctx: &mut Context) -> Poll<(), Error> {
-        let mut taskio = TaskStream { io: &mut self.io, task: ctx };
-        // FIXME TlsStream + TaskStream
-        async!(from io::Write::flush(&mut taskio))
+        let (io, session) = self.get_mut();
+        let mut taskio = TaskStream { io, task: ctx };
+        let mut stream = Stream::new(session, &mut taskio);
+
+        async!(from io::Write::flush(&mut stream))
     }
 
     fn poll_close(&mut self, ctx: &mut Context) -> Poll<(), Error> {
@@ -136,8 +141,9 @@ impl<S, C> AsyncWrite for TlsStream<S, C>
         }
 
         {
-            let mut taskio = TaskStream { io: &mut self.io, task: ctx };
-            while TlsStream::do_write(&mut self.session, &mut taskio)? {};
+            let (io, session) = self.get_mut();
+            let mut taskio = TaskStream { io, task: ctx };
+            session.complete_io(&mut taskio)?;
         }
 
         self.io.poll_close(ctx)

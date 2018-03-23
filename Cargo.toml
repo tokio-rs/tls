@@ -15,23 +15,23 @@ travis-ci = { repository = "quininer/tokio-rustls" }
 appveyor = { repository = "quininer/tokio-rustls" }
 
 [dependencies]
-futures = { version = "0.2.0-alpha", optional = true }
+futures = { version = "0.2.0-beta", optional = true }
 tokio = { version = "0.1", optional = true }
 rustls = "0.12"
 webpki = "0.18.0-alpha"
 
 [dev-dependencies]
 tokio = "0.1"
-tokio-io = "0.1"
-tokio-core = "0.1"
-tokio-file-unix = "0.4"
+# tokio-io = "0.1"
+# tokio-core = "0.1"
+# tokio-file-unix = "0.4"
 clap = "2.26"
 webpki-roots = "0.14"
 
 [features]
-default = [ "tokio" ]
-# unstable-futures = [ "futures", "tokio/unstable-futures" ]
-# default = [ "unstable-futures", "tokio" ]
+# default = [ "tokio" ]
+default = [ "unstable-futures", "tokio" ]
+unstable-futures = [ "futures", "tokio/unstable-futures" ]
 
 [patch.crates-io]
-# tokio = { path = "../ref/tokio" }
+tokio = { path = "../ref/tokio" }

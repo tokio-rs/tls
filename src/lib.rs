@@ -176,16 +176,6 @@ impl<S, C> TlsStream<S, C>
     }
 }
 
-macro_rules! try_ignore {
-    ( $r:expr ) => {
-        match $r {
-            Ok(_) => (),
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => (),
-            Err(e) => return Err(e)
-        }
-    }
-}
-
 impl<S, C> io::Read for TlsStream<S, C>
     where S: io::Read + io::Write, C: Session
 {

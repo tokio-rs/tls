@@ -35,7 +35,9 @@ impl<S, C> Future for MidHandshake<S, C>
             let stream = self.inner.as_mut().unwrap();
             if !stream.session.is_handshaking() { break };
 
-            match stream.session.complete_io(&mut stream.io) {
+            let (io, session) = stream.get_mut();
+
+            match session.complete_io(io) {
                 Ok(_) => (),
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::NotReady),
                 Err(e) => return Err(e)
@@ -62,7 +64,7 @@ impl<S, C> AsyncWrite for TlsStream<S, C>
             self.session.send_close_notify();
             self.is_shutdown = true;
         }
-        while TlsStream::do_write(&mut self.session, &mut self.io)? {};
+        self.session.complete_io(&mut self.io)?;
         self.io.shutdown()
     }
 }
