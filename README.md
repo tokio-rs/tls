@@ -31,25 +31,28 @@ TcpStream::connect(&addr)
 
 ### Client Example Program
 
-See [examples/client.rs](examples/client.rs). You can run it with:
+See [examples/client](examples/client/src/main.rs). You can run it with:
 
 ```sh
-cargo run --example client hsts.badssl.com
+cd examples/client
+cargo run -- hsts.badssl.com
 ```
 
 Currently on Windows the example client reads from stdin and writes to stdout using
 blocking I/O. Until this is fixed, do something this on Windows:
 
 ```sh
-echo | cargo run --example client hsts.badssl.com
+cd examples/client
+echo | cargo run -- hsts.badssl.com
 ```
 
 ### Server Example Program
 
-See [examples/server.rs](examples/server.rs). You can run it with:
+See [examples/server](examples/server/src/main.rs). You can run it with:
 
 ```sh
-cargo run --example server -- 127.0.0.1 --cert mycert.der --key mykey.der
+cd examples/server
+cargo run -- 127.0.0.1 --cert mycert.der --key mykey.der
 ```
 
 ### License & Origin

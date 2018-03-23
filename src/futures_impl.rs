@@ -143,9 +143,13 @@ impl<S, C> AsyncWrite for TlsStream<S, C>
     fn poll_flush(&mut self, ctx: &mut Context) -> Poll<(), Error> {
         let (io, session) = self.get_mut();
         let mut taskio = TaskStream { io, task: ctx };
-        let mut stream = Stream::new(session, &mut taskio);
 
-        async!(from io::Write::flush(&mut stream))
+        {
+            let mut stream = Stream::new(session, &mut taskio);
+            async!(from io::Write::flush(&mut stream))?;
+        }
+
+        async!(from io::Write::flush(&mut taskio))
     }
 
     fn poll_close(&mut self, ctx: &mut Context) -> Poll<(), Error> {
@@ -157,7 +161,7 @@ impl<S, C> AsyncWrite for TlsStream<S, C>
         {
             let (io, session) = self.get_mut();
             let mut taskio = TaskStream { io, task: ctx };
-            session.complete_io(&mut taskio)?;
+            async!(from session.complete_io(&mut taskio))?;
         }
 
         self.io.poll_close(ctx)

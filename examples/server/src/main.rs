@@ -52,20 +52,18 @@ fn main() {
     let done = socket.incoming()
         .for_each(move |stream| if flag_echo {
             let addr = stream.peer_addr().ok();
-            let addr2 = addr.clone();
             let done = arc_config.accept_async(stream)
                 .and_then(|stream| {
                     let (reader, writer) = stream.split();
                     io::copy(reader, writer)
                 })
                 .map(move |(n, ..)| println!("Echo: {} - {:?}", n, addr))
-                .map_err(move |err| println!("Error: {:?} - {:?}", err, addr2));
+                .map_err(move |err| println!("Error: {:?} - {:?}", err, addr));
             tokio::spawn(done);
 
             Ok(())
         } else {
             let addr = stream.peer_addr().ok();
-            let addr2 = addr.clone();
             let done = arc_config.accept_async(stream)
                 .and_then(|stream| io::write_all(
                     stream,
@@ -77,7 +75,7 @@ fn main() {
                 ))
                 .and_then(|(stream, _)| io::flush(stream))
                 .map(move |_| println!("Accept: {:?}", addr))
-                .map_err(move |err| println!("Error: {:?} - {:?}", err, addr2));
+                .map_err(move |err| println!("Error: {:?} - {:?}", err, addr));
             tokio::spawn(done);
 
             Ok(())
