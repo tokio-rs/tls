@@ -10,7 +10,9 @@ tokio-rustls = { path = "../..", default-features = false, features = [ "tokio" 
 
 tokio = "0.1"
 tokio-core = "0.1"
-tokio-file-unix = "0.4"
 
 clap = "2.26"
 webpki-roots = "0.14"
+
+[target.'cfg(unix)'.dependencies]
+tokio-file-unix = "0.4"

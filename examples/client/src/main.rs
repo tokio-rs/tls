@@ -19,9 +19,6 @@ use clap::{ App, Arg };
 use rustls::ClientConfig;
 use tokio_rustls::ClientConfigExt;
 
-#[cfg(not(unix))]
-use std::io::{Read, Write};
-
 fn app() -> App<'static, 'static> {
     App::new("client")
         .about("tokio-rustls client example")
@@ -95,6 +92,7 @@ fn main() {
     // The network I/O will still be asynchronous and non-blocking.
     #[cfg(not(unix))]
     {
+        use std::io::{ Read, Write };
         use tokio::net::TcpStream;
 
         let socket = TcpStream::connect(&addr);
