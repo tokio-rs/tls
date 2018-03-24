@@ -117,14 +117,7 @@ impl<S, C> io::Read for TlsStream<S, C>
             return Ok(0);
         }
 
-        // TODO nll
-        let result = {
-            let (io, session) = self.get_mut();
-            let mut stream = Stream::new(session, io);
-            stream.read(buf)
-        };
-
-        match result {
+        match Stream::new(&mut self.session, &mut self.io).read(buf) {
             Ok(0) => { self.eof = true; Ok(0) },
             Ok(n) => Ok(n),
             Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => {
@@ -142,19 +135,11 @@ impl<S, C> io::Write for TlsStream<S, C>
     where S: io::Read + io::Write, C: Session
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let (io, session) = self.get_mut();
-        let mut stream = Stream::new(session, io);
-
-        stream.write(buf)
+        Stream::new(&mut self.session, &mut self.io).write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        {
-            let (io, session) = self.get_mut();
-            let mut stream = Stream::new(session, io);
-            stream.flush()?;
-        }
-
+        Stream::new(&mut self.session, &mut self.io).flush()?;
         self.io.flush()
     }
 }

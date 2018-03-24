@@ -8,3 +8,7 @@ os:
 
 script:
     - cargo test --all-features
+    - cd examples/server
+    - cargo check
+    - cd ../../examples/client
+    - cargo check

@@ -1,9 +1,7 @@
 environment:
   matrix:
       - TARGET: x86_64-pc-windows-msvc
-        BITS: 64
       - TARGET: i686-pc-windows-msvc
-        BITS: 32
 
 install:
     - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
@@ -16,3 +14,7 @@ build: false
 
 test_script:
     - 'cargo test --all-features'
+    - 'cd examples/server'
+    - 'cargo check'
+    - 'cd ../../examples/client'
+    - 'cargo check'

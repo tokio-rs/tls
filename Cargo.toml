@@ -26,6 +26,3 @@ tokio = "0.1"
 [features]
 default = [ "unstable-futures", "tokio" ]
 unstable-futures = [ "futures", "tokio/unstable-futures" ]
-
-[patch.crates-io]
-tokio = { git = "https://github.com/tokio-rs/tokio" }

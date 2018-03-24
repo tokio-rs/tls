@@ -11,7 +11,3 @@ tokio = { version = "0.1", features = [ "unstable-futures" ] }
 futures = "0.2.0-beta"
 
 clap = "2.26"
-
-
-[patch.crates-io]
-tokio = { git = "https://github.com/tokio-rs/tokio" }
