@@ -73,10 +73,11 @@ fn start_client(addr: &SocketAddr, domain: &str, chain: Option<BufReader<Cursor<
         .and_then(|stream| config.connect_async(domain, stream))
         .and_then(|stream| aio::write_all(stream, HELLO_WORLD))
         .and_then(|(stream, _)| aio::read_exact(stream, vec![0; HELLO_WORLD.len()]))
-        .and_then(|(_, buf)| {
+        .and_then(|(stream, buf)| {
             assert_eq!(buf, HELLO_WORLD);
-            Ok(())
-        });
+            aio::shutdown(stream)
+        })
+        .map(drop);
 
     done.wait()
 }
@@ -98,10 +99,11 @@ fn start_client2(addr: &SocketAddr, domain: &str, chain: Option<BufReader<Cursor
         .and_then(|stream| config.connect_async(domain, stream))
         .and_then(|stream| stream.write_all(HELLO_WORLD))
         .and_then(|(stream, _)| stream.read_exact(vec![0; HELLO_WORLD.len()]))
-        .and_then(|(_, buf)| {
+        .and_then(|(stream, buf)| {
             assert_eq!(buf, HELLO_WORLD);
-            Ok(())
-        });
+            stream.close()
+        })
+        .map(drop);
 
     block_on(done)
 }

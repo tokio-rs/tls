@@ -64,7 +64,13 @@ impl<S, C> AsyncWrite for TlsStream<S, C>
             self.session.send_close_notify();
             self.is_shutdown = true;
         }
-        self.session.complete_io(&mut self.io)?;
+
+        match self.session.complete_io(&mut self.io) {
+            Ok(_) => (),
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::NotReady),
+            Err(e) => return Err(e)
+        }
+
         self.io.shutdown()
     }
 }
