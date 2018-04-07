@@ -7,7 +7,7 @@ authors = ["quininer <quininer@live.com>"]
 rustls = "0.12"
 tokio-rustls = { path = "../..", default-features = false, features = [ "unstable-futures" ] }
 
-tokio = { version = "0.1", features = [ "unstable-futures" ] }
+tokio = { version = "0.1.5", features = [ "unstable-futures" ] }
 futures = "0.2.0-beta"
 
 clap = "2.26"
