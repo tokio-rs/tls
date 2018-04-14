@@ -1,9 +1,10 @@
-extern crate futures;
+extern crate futures_core;
+extern crate futures_io;
 
 use super::*;
-use self::futures::{ Future, Poll, Async };
-use self::futures::io::{ Error, AsyncRead, AsyncWrite };
-use self::futures::task::Context;
+use self::futures_core::{ Future, Poll, Async };
+use self::futures_core::task::Context;
+use self::futures_io::{ Error, AsyncRead, AsyncWrite };
 
 
 impl<S: AsyncRead + AsyncWrite> Future for ConnectAsync<S> {
