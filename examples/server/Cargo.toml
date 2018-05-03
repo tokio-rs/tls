@@ -5,9 +5,9 @@ authors = ["quininer <quininer@live.com>"]
 
 [dependencies]
 rustls = "0.12"
-tokio-rustls = { path = "../..", default-features = false, features = [ "unstable-futures" ] }
+tokio-rustls = { path = "../..", default-features = false, features = [ "tokio" ] }
 
-tokio = { version = "0.1.5", features = [ "unstable-futures" ] }
-futures = "0.2.0-beta"
+tokio = { version = "0.1.6" }
+# futures = "0.2.0-beta"
 
 clap = "2.26"
