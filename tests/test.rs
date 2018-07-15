@@ -26,7 +26,8 @@ fn start_server(cert: Vec<Certificate>, rsa: PrivateKey) -> SocketAddr {
     use tokio::io as aio;
 
     let mut config = ServerConfig::new(rustls::NoClientAuth::new());
-    config.set_single_cert(cert, rsa);
+    config.set_single_cert(cert, rsa)
+        .expect("invalid key or certificate");
     let config = Arc::new(config);
 
     let (send, recv) = channel();

@@ -45,7 +45,8 @@ fn main() {
     let flag_echo = matches.occurrences_of("echo") > 0;
 
     let mut config = ServerConfig::new(NoClientAuth::new());
-    config.set_single_cert(load_certs(cert_file), load_keys(key_file).remove(0));
+    config.set_single_cert(load_certs(cert_file), load_keys(key_file).remove(0))
+        .expect("invalid key or certificate");
     let arc_config = Arc::new(config);
 
     let socket = TcpListener::bind(&addr).unwrap();

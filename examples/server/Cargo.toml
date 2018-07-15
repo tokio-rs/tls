@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["quininer <quininer@live.com>"]
 
 [dependencies]
-rustls = "0.12"
+rustls = "0.13"
 tokio-rustls = { path = "../..", default-features = false, features = [ "tokio" ] }
 
 tokio = { version = "0.1.6" }
