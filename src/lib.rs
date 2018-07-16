@@ -1,7 +1,7 @@
 //! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
 
-extern crate rustls;
-extern crate webpki;
+pub extern crate rustls;
+pub extern crate webpki;
 
 #[cfg(feature = "tokio")] mod tokio_impl;
 #[cfg(feature = "unstable-futures")] mod futures_impl;
