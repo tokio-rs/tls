@@ -1,5 +1,4 @@
 extern crate clap;
-extern crate rustls;
 extern crate tokio;
 extern crate tokio_rustls;
 
@@ -7,14 +6,15 @@ use std::sync::Arc;
 use std::net::ToSocketAddrs;
 use std::io::BufReader;
 use std::fs::File;
-use rustls::{ Certificate, NoClientAuth, PrivateKey, ServerConfig };
-use rustls::internal::pemfile::{ certs, rsa_private_keys };
+use tokio_rustls::{
+    ServerConfigExt,
+    rustls::{ Certificate, NoClientAuth, PrivateKey, ServerConfig,
+    internal::pemfile::{ certs, rsa_private_keys }},
+};
 use tokio::prelude::{ Future, Stream };
 use tokio::io::{ self, AsyncRead };
 use tokio::net::TcpListener;
 use clap::{ App, Arg };
-use tokio_rustls::ServerConfigExt;
-
 
 fn app() -> App<'static, 'static> {
     App::new("server")

@@ -1,5 +1,4 @@
 extern crate clap;
-extern crate rustls;
 extern crate tokio;
 extern crate webpki;
 extern crate webpki_roots;
@@ -16,8 +15,7 @@ use tokio::io;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 use clap::{ App, Arg };
-use rustls::ClientConfig;
-use tokio_rustls::ClientConfigExt;
+use tokio_rustls::{ClientConfigExt, rustls::ClientConfig};
 
 fn app() -> App<'static, 'static> {
     App::new("client")

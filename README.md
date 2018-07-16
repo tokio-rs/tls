@@ -13,8 +13,7 @@ Asynchronous TLS/SSL streams for [Tokio](https://tokio.rs/) using
 
 ```rust
 use webpki::DNSNameRef;
-use rustls::ClientConfig;
-use tokio_rustls::ClientConfigExt;
+use tokio_rustls::{ClientConfigExt, rustls::ClientConfig};
 
 // ...
 
