@@ -15,7 +15,7 @@ use tokio::io;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 use clap::{ App, Arg };
-use tokio_rustls::{ClientConfigExt, rustls::ClientConfig};
+use tokio_rustls::{ ClientConfigExt, rustls::ClientConfig };
 
 fn app() -> App<'static, 'static> {
     App::new("client")
