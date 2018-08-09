@@ -15,7 +15,7 @@ use tokio::io;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 use clap::{ App, Arg };
-use tokio_rustls::{ ClientConfigExt, rustls::ClientConfig };
+use tokio_rustls::{ TlsConnector, rustls::ClientConfig };
 
 fn app() -> App<'static, 'static> {
     App::new("client")
@@ -49,7 +49,7 @@ fn main() {
     } else {
         config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
     }
-    let arc_config = Arc::new(config);
+    let config = TlsConnector::from(Arc::new(config));
 
     let socket = TcpStream::connect(&addr);
 
@@ -70,7 +70,7 @@ fn main() {
         socket
             .and_then(move |stream| {
                 let domain = webpki::DNSNameRef::try_from_ascii_str(&domain).unwrap();
-                arc_config.connect_async(domain, stream)
+                config.connect(domain, stream)
             })
             .and_then(move |stream| io::write_all(stream, text))
             .and_then(move |(stream, _)| {
@@ -93,7 +93,7 @@ fn main() {
         socket
             .and_then(move |stream| {
                 let domain = webpki::DNSNameRef::try_from_ascii_str(&domain).unwrap();
-                arc_config.connect_async(domain, stream)
+                config.connect(domain, stream)
             })
             .and_then(move |stream| io::write_all(stream, text))
             .and_then(move |(stream, _)| {

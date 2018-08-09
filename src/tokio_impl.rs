@@ -6,7 +6,7 @@ use self::tokio::io::{ AsyncRead, AsyncWrite };
 use self::tokio::prelude::Poll;
 
 
-impl<S: AsyncRead + AsyncWrite> Future for ConnectAsync<S> {
+impl<S: AsyncRead + AsyncWrite> Future for Connect<S> {
     type Item = TlsStream<S, ClientSession>;
     type Error = io::Error;
 
@@ -15,7 +15,7 @@ impl<S: AsyncRead + AsyncWrite> Future for ConnectAsync<S> {
     }
 }
 
-impl<S: AsyncRead + AsyncWrite> Future for AcceptAsync<S> {
+impl<S: AsyncRead + AsyncWrite> Future for Accept<S> {
     type Item = TlsStream<S, ServerSession>;
     type Error = io::Error;
 

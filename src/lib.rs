@@ -16,70 +16,69 @@ use rustls::{
 };
 
 
-/// Extension trait for the `Arc<ClientConfig>` type in the `rustls` crate.
-pub trait ClientConfigExt: sealed::Sealed {
-    fn connect_async<S>(&self, domain: DNSNameRef, stream: S)
-        -> ConnectAsync<S>
-        where S: io::Read + io::Write;
+pub struct TlsConnector {
+    inner: Arc<ClientConfig>
 }
 
-/// Extension trait for the `Arc<ServerConfig>` type in the `rustls` crate.
-pub trait ServerConfigExt: sealed::Sealed {
-    fn accept_async<S>(&self, stream: S)
-        -> AcceptAsync<S>
-        where S: io::Read + io::Write;
+pub struct TlsAcceptor {
+    inner: Arc<ServerConfig>
+}
+
+impl From<Arc<ClientConfig>> for TlsConnector {
+    fn from(inner: Arc<ClientConfig>) -> TlsConnector {
+        TlsConnector { inner }
+    }
+}
+
+impl From<Arc<ServerConfig>> for TlsAcceptor {
+    fn from(inner: Arc<ServerConfig>) -> TlsAcceptor {
+        TlsAcceptor { inner }
+    }
+}
+
+impl TlsConnector {
+    pub fn connect<S>(&self, domain: DNSNameRef, stream: S) -> Connect<S>
+        where S: io::Read + io::Write
+    {
+        Self::connect_with_session(stream, ClientSession::new(&self.inner, domain))
+    }
+
+    #[inline]
+    pub fn connect_with_session<S>(stream: S, session: ClientSession)
+        -> Connect<S>
+        where S: io::Read + io::Write
+    {
+        Connect(MidHandshake {
+            inner: Some(TlsStream { session, io: stream, is_shutdown: false, eof: false })
+        })
+    }
+}
+
+impl TlsAcceptor {
+    pub fn accept<S>(&self, stream: S) -> Accept<S>
+        where S: io::Read + io::Write,
+    {
+        Self::accept_with_session(stream, ServerSession::new(&self.inner))
+    }
+
+    #[inline]
+    pub fn accept_with_session<S>(stream: S, session: ServerSession) -> Accept<S>
+        where S: io::Read + io::Write
+    {
+        Accept(MidHandshake {
+            inner: Some(TlsStream { session, io: stream, is_shutdown: false, eof: false })
+        })
+    }
 }
 
 
 /// Future returned from `ClientConfigExt::connect_async` which will resolve
 /// once the connection handshake has finished.
-pub struct ConnectAsync<S>(MidHandshake<S, ClientSession>);
+pub struct Connect<S>(MidHandshake<S, ClientSession>);
 
 /// Future returned from `ServerConfigExt::accept_async` which will resolve
 /// once the accept handshake has finished.
-pub struct AcceptAsync<S>(MidHandshake<S, ServerSession>);
-
-impl sealed::Sealed for Arc<ClientConfig> {}
-
-impl ClientConfigExt for Arc<ClientConfig> {
-    fn connect_async<S>(&self, domain: DNSNameRef, stream: S)
-        -> ConnectAsync<S>
-        where S: io::Read + io::Write
-    {
-        connect_async_with_session(stream, ClientSession::new(self, domain))
-    }
-}
-
-#[inline]
-pub fn connect_async_with_session<S>(stream: S, session: ClientSession)
-    -> ConnectAsync<S>
-    where S: io::Read + io::Write
-{
-    ConnectAsync(MidHandshake {
-        inner: Some(TlsStream { session, io: stream, is_shutdown: false, eof: false })
-    })
-}
-
-impl sealed::Sealed for Arc<ServerConfig> {}
-
-impl ServerConfigExt for Arc<ServerConfig> {
-    fn accept_async<S>(&self, stream: S)
-        -> AcceptAsync<S>
-        where S: io::Read + io::Write
-    {
-        accept_async_with_session(stream, ServerSession::new(self))
-    }
-}
-
-#[inline]
-pub fn accept_async_with_session<S>(stream: S, session: ServerSession)
-    -> AcceptAsync<S>
-    where S: io::Read + io::Write
-{
-    AcceptAsync(MidHandshake {
-        inner: Some(TlsStream { session, io: stream, is_shutdown: false, eof: false })
-    })
-}
+pub struct Accept<S>(MidHandshake<S, ServerSession>);
 
 
 struct MidHandshake<S, C> {
@@ -142,8 +141,4 @@ impl<S, C> io::Write for TlsStream<S, C>
         Stream::new(&mut self.session, &mut self.io).flush()?;
         self.io.flush()
     }
-}
-
-mod sealed {
-    pub trait Sealed {}
 }

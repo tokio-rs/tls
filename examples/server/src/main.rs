@@ -7,7 +7,7 @@ use std::net::ToSocketAddrs;
 use std::io::BufReader;
 use std::fs::File;
 use tokio_rustls::{
-    ServerConfigExt,
+    TlsAcceptor,
     rustls::{
         Certificate, NoClientAuth, PrivateKey, ServerConfig,
         internal::pemfile::{ certs, rsa_private_keys }
@@ -49,13 +49,13 @@ fn main() {
     let mut config = ServerConfig::new(NoClientAuth::new());
     config.set_single_cert(load_certs(cert_file), load_keys(key_file).remove(0))
         .expect("invalid key or certificate");
-    let arc_config = Arc::new(config);
+    let config = TlsAcceptor::from(Arc::new(config));
 
     let socket = TcpListener::bind(&addr).unwrap();
     let done = socket.incoming()
         .for_each(move |stream| if flag_echo {
             let addr = stream.peer_addr().ok();
-            let done = arc_config.accept_async(stream)
+            let done = config.accept(stream)
                 .and_then(|stream| {
                     let (reader, writer) = stream.split();
                     io::copy(reader, writer)
@@ -67,7 +67,7 @@ fn main() {
             Ok(())
         } else {
             let addr = stream.peer_addr().ok();
-            let done = arc_config.accept_async(stream)
+            let done = config.accept(stream)
                 .and_then(|stream| io::write_all(
                     stream,
                     &b"HTTP/1.0 200 ok\r\n\

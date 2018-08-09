@@ -13,7 +13,7 @@ use std::net::{ SocketAddr, IpAddr, Ipv4Addr };
 use tokio::net::{ TcpListener, TcpStream };
 use rustls::{ Certificate, PrivateKey, ServerConfig, ClientConfig };
 use rustls::internal::pemfile::{ certs, rsa_private_keys };
-use tokio_rustls::{ ClientConfigExt, ServerConfigExt };
+use tokio_rustls::{ TlsConnector, TlsAcceptor };
 
 const CERT: &str = include_str!("end.cert");
 const CHAIN: &str = include_str!("end.chain");
@@ -28,7 +28,7 @@ fn start_server(cert: Vec<Certificate>, rsa: PrivateKey) -> SocketAddr {
     let mut config = ServerConfig::new(rustls::NoClientAuth::new());
     config.set_single_cert(cert, rsa)
         .expect("invalid key or certificate");
-    let config = Arc::new(config);
+    let config = TlsAcceptor::from(Arc::new(config));
 
     let (send, recv) = channel();
 
@@ -40,7 +40,7 @@ fn start_server(cert: Vec<Certificate>, rsa: PrivateKey) -> SocketAddr {
 
         let done = listener.incoming()
             .for_each(move |stream| {
-                let done = config.accept_async(stream)
+                let done = config.accept(stream)
                     .and_then(|stream| aio::read_exact(stream, vec![0; HELLO_WORLD.len()]))
                     .and_then(|(stream, buf)| {
                         assert_eq!(buf, HELLO_WORLD);
@@ -68,10 +68,10 @@ fn start_client(addr: &SocketAddr, domain: &str, chain: Option<BufReader<Cursor<
     if let Some(mut chain) = chain {
         config.root_store.add_pem_file(&mut chain).unwrap();
     }
-    let config = Arc::new(config);
+    let config = TlsConnector::from(Arc::new(config));
 
     let done = TcpStream::connect(addr)
-        .and_then(|stream| config.connect_async(domain, stream))
+        .and_then(|stream| config.connect(domain, stream))
         .and_then(|stream| aio::write_all(stream, HELLO_WORLD))
         .and_then(|(stream, _)| aio::read_exact(stream, vec![0; HELLO_WORLD.len()]))
         .and_then(|(stream, buf)| {
@@ -94,10 +94,10 @@ fn start_client2(addr: &SocketAddr, domain: &str, chain: Option<BufReader<Cursor
     if let Some(mut chain) = chain {
         config.root_store.add_pem_file(&mut chain).unwrap();
     }
-    let config = Arc::new(config);
+    let config = TlsConnector::from(Arc::new(config));
 
     let done = TcpStream::connect(addr)
-        .and_then(|stream| config.connect_async(domain, stream))
+        .and_then(|stream| config.connect(domain, stream))
         .and_then(|stream| stream.write_all(HELLO_WORLD))
         .and_then(|(stream, _)| stream.read_exact(vec![0; HELLO_WORLD.len()]))
         .and_then(|(stream, buf)| {
