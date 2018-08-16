@@ -5,11 +5,9 @@ authors = ["quininer <quininer@live.com>"]
 
 [dependencies]
 webpki = "0.18.1"
-tokio-rustls = { path = "../..", default-features = false, features = [ "tokio" ] }
-
+tokio-rustls = { path = "../.." }
 tokio = "0.1"
-
-clap = "2.26"
+clap = "2"
 webpki-roots = "0.15"
 
 [target.'cfg(unix)'.dependencies]
