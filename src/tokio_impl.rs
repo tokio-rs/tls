@@ -1,9 +1,7 @@
-extern crate tokio;
-
 use super::*;
-use self::tokio::prelude::*;
-use self::tokio::io::{ AsyncRead, AsyncWrite };
-use self::tokio::prelude::Poll;
+use tokio::prelude::*;
+use tokio::io::{ AsyncRead, AsyncWrite };
+use tokio::prelude::Poll;
 
 
 impl<S: AsyncRead + AsyncWrite> Future for ConnectAsync<S> {
