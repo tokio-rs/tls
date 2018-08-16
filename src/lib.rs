@@ -11,8 +11,7 @@ extern crate iovec;
 
 
 mod common;
-#[cfg(feature = "tokio")] mod tokio_impl;
-#[cfg(feature = "unstable-futures")] mod futures_impl;
+#[cfg(feature = "tokio_impl")] mod tokio_impl;
 
 use std::io;
 use std::sync::Arc;
