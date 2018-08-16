@@ -2,7 +2,7 @@ use super::*;
 use tokio::prelude::*;
 use tokio::io::{ AsyncRead, AsyncWrite };
 use tokio::prelude::Poll;
-use common::{ Stream, CompleteIo };
+use common::Stream;
 
 
 impl<S: AsyncRead + AsyncWrite> Future for ConnectAsync<S> {
