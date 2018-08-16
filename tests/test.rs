@@ -83,32 +83,6 @@ fn start_client(addr: &SocketAddr, domain: &str, chain: Option<BufReader<Cursor<
     done.wait()
 }
 
-#[cfg(feature = "unstable-futures")]
-fn start_client2(addr: &SocketAddr, domain: &str, chain: Option<BufReader<Cursor<&str>>>) -> io::Result<()> {
-    use futures::FutureExt;
-    use futures::io::{ AsyncReadExt, AsyncWriteExt };
-    use futures::executor::block_on;
-
-    let domain = webpki::DNSNameRef::try_from_ascii_str(domain).unwrap();
-    let mut config = ClientConfig::new();
-    if let Some(mut chain) = chain {
-        config.root_store.add_pem_file(&mut chain).unwrap();
-    }
-    let config = Arc::new(config);
-
-    let done = TcpStream::connect(addr)
-        .and_then(|stream| config.connect_async(domain, stream))
-        .and_then(|stream| stream.write_all(HELLO_WORLD))
-        .and_then(|(stream, _)| stream.read_exact(vec![0; HELLO_WORLD.len()]))
-        .and_then(|(stream, buf)| {
-            assert_eq!(buf, HELLO_WORLD);
-            stream.close()
-        })
-        .map(drop);
-
-    block_on(done)
-}
-
 
 #[test]
 fn pass() {
@@ -118,17 +92,6 @@ fn pass() {
 
     let addr = start_server(cert, keys.pop().unwrap());
     start_client(&addr, "localhost", Some(chain)).unwrap();
-}
-
-#[cfg(feature = "unstable-futures")]
-#[test]
-fn pass2() {
-    let cert = certs(&mut BufReader::new(Cursor::new(CERT))).unwrap();
-    let mut keys = rsa_private_keys(&mut BufReader::new(Cursor::new(RSA))).unwrap();
-    let chain = BufReader::new(Cursor::new(CHAIN));
-
-    let addr = start_server(cert, keys.pop().unwrap());
-    start_client2(&addr, "localhost", Some(chain)).unwrap();
 }
 
 #[should_panic]

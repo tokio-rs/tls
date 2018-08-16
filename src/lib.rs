@@ -3,8 +3,9 @@
 pub extern crate rustls;
 pub extern crate webpki;
 
+extern crate tokio;
+
 #[cfg(feature = "tokio")] mod tokio_impl;
-#[cfg(feature = "unstable-futures")] mod futures_impl;
 
 use std::io;
 use std::sync::Arc;
