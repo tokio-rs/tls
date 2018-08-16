@@ -2,6 +2,7 @@ use super::*;
 use tokio::prelude::*;
 use tokio::io::{ AsyncRead, AsyncWrite };
 use tokio::prelude::Poll;
+use common::{ Stream, CompleteIo };
 
 
 impl<S: AsyncRead + AsyncWrite> Future for ConnectAsync<S> {
@@ -29,16 +30,17 @@ impl<S, C> Future for MidHandshake<S, C>
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        loop {
+        {
             let stream = self.inner.as_mut().unwrap();
-            if !stream.session.is_handshaking() { break };
+            if stream.session.is_handshaking() {
+                let (io, session) = stream.get_mut();
+                let mut stream = Stream::new(session, io);
 
-            let (io, session) = stream.get_mut();
-
-            match session.complete_io(io) {
-                Ok(_) => (),
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::NotReady),
-                Err(e) => return Err(e)
+                match stream.complete_io() {
+                    Ok(_) => (),
+                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::NotReady),
+                    Err(e) => return Err(e)
+                }
             }
         }
 

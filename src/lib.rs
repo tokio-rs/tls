@@ -1,5 +1,7 @@
 //! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
 
+#![feature(specialization)]
+
 pub extern crate rustls;
 pub extern crate webpki;
 
@@ -18,8 +20,8 @@ use webpki::DNSNameRef;
 use rustls::{
     Session, ClientSession, ServerSession,
     ClientConfig, ServerConfig,
-    Stream
 };
+use common::Stream;
 
 
 /// Extension trait for the `Arc<ClientConfig>` type in the `rustls` crate.
