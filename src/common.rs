@@ -171,7 +171,11 @@ impl<'a, 'b> Buf for VecBuf<'a, 'b> {
     fn bytes_vec<'c>(&'c self, dst: &mut [&'c IoVec]) -> usize {
         let len = cmp::min(self.inner.len() - self.pos, dst.len());
 
-        for i in 0..len {
+        if len > 0 {
+            dst[0] = self.bytes().into();
+        }
+
+        for i in 1..len {
             dst[i] = self.inner[self.pos + i].into();
         }
 
