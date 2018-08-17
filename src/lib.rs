@@ -1,12 +1,17 @@
 //! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
 
-#![feature(specialization)]
+#![cfg_attr(feature = "nightly", feature(specialization))]
 
 pub extern crate rustls;
 pub extern crate webpki;
 
+#[cfg(feature = "tokio-support")]
 extern crate tokio;
+#[cfg(feature = "nightly")]
+#[cfg(feature = "tokio-support")]
 extern crate bytes;
+#[cfg(feature = "nightly")]
+#[cfg(feature = "tokio-support")]
 extern crate iovec;
 
 

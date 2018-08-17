@@ -25,5 +25,6 @@ webpki = "0.18.1"
 tokio = "0.1.6"
 
 [features]
-default = [ "tokio-support" ]
-tokio-support = [ "tokio", "bytes", "iovec" ]
+default = ["tokio-support"]
+nightly = ["bytes", "iovec"]
+tokio-support = ["tokio"]
