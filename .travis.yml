@@ -1,13 +1,21 @@
 language: rust
-rust:
-    - stable
 cache: cargo
-os:
-    - linux
-    - osx
+
+matrix:
+  include:
+    - rust: stable
+      os: linux
+    - rust: nightly
+      env: FEATURE=nightly
+      os: linux
+    - rust: stable
+      os: osx
+    - rust: nightly
+      env: FEATURE=nightly
+      os: osx
 
 script:
-    - cargo test --all-features
+    - cargo test --features "$FEATURE"
     - cd examples/server
     - cargo check
     - cd ../../examples/client
