@@ -100,7 +100,6 @@ impl<'a, S: Session, IO: Read + Write> Read for Stream<'a, S, IO> {
                 break
             }
         }
-
         self.session.read(buf)
     }
 }
@@ -108,7 +107,13 @@ impl<'a, S: Session, IO: Read + Write> Read for Stream<'a, S, IO> {
 impl<'a, S: Session, IO: Read + Write> io::Write for Stream<'a, S, IO> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let len = self.session.write(buf)?;
-        self.complete_io()?;
+        while self.session.wants_write() {
+            match self.complete_io() {
+                Ok(_) => (),
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock && len != 0 => break,
+                Err(err) => return Err(err)
+            }
+        }
         Ok(len)
     }
 
