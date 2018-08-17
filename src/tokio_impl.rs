@@ -52,7 +52,11 @@ impl<S, C> AsyncRead for TlsStream<S, C>
     where
         S: AsyncRead + AsyncWrite,
         C: Session
-{}
+{
+    unsafe fn prepare_uninitialized_buffer(&self, _: &mut [u8]) -> bool {
+        false
+    }
+}
 
 impl<S, C> AsyncWrite for TlsStream<S, C>
     where

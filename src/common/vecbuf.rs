@@ -48,7 +48,7 @@ impl<'a, 'b> Buf for VecBuf<'a, 'b> {
         }
     }
 
-    #[allow(needless_range_loop)]
+    #[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
     fn bytes_vec<'c>(&'c self, dst: &mut [&'c IoVec]) -> usize {
         let len = cmp::min(self.inner.len() - self.pos, dst.len());
 
