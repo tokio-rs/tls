@@ -141,3 +141,6 @@ impl<'a, S: Session, IO: Read + Write> io::Write for Stream<'a, S, IO> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test_stream;
