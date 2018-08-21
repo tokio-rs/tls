@@ -4,8 +4,7 @@ extern crate webpki;
 extern crate webpki_roots;
 extern crate tokio_rustls;
 
-#[cfg(unix)] extern crate tokio_file_unix;
-#[cfg(not(unix))] extern crate tokio_fs;
+extern crate tokio_stdin_stdout;
 
 use std::sync::Arc;
 use std::net::ToSocketAddrs;
@@ -16,6 +15,7 @@ use tokio::net::TcpStream;
 use tokio::prelude::*;
 use clap::{ App, Arg };
 use tokio_rustls::{ ClientConfigExt, rustls::ClientConfig };
+use tokio_stdin_stdout::{ stdin as tokio_stdin, stdout as tokio_stdout };
 
 fn app() -> App<'static, 'static> {
     App::new("client")
@@ -52,59 +52,23 @@ fn main() {
     let arc_config = Arc::new(config);
 
     let socket = TcpStream::connect(&addr);
+    let (stdin, stdout) = (tokio_stdin(0), tokio_stdout(0));
 
-    #[cfg(unix)]
-    let resp = {
-        use tokio::reactor::Handle;
-        use tokio_file_unix::{ raw_stdin, raw_stdout, File };
+    let done = socket
+        .and_then(move |stream| {
+            let domain = webpki::DNSNameRef::try_from_ascii_str(&domain).unwrap();
+            arc_config.connect_async(domain, stream)
+        })
+        .and_then(move |stream| io::write_all(stream, text))
+        .and_then(move |(stream, _)| {
+            let (r, w) = stream.split();
+            io::copy(r, stdout)
+                .map(drop)
+                .select2(io::copy(stdin, w).map(drop))
+                .map_err(|res| res.split().0)
+        })
+        .map(drop)
+        .map_err(|err| eprintln!("{:?}", err));
 
-        let stdin = raw_stdin()
-            .and_then(File::new_nb)
-            .and_then(|fd| fd.into_reader(&Handle::current()))
-            .unwrap();
-        let stdout = raw_stdout()
-            .and_then(File::new_nb)
-            .and_then(|fd| fd.into_io(&Handle::current()))
-            .unwrap();
-
-        socket
-            .and_then(move |stream| {
-                let domain = webpki::DNSNameRef::try_from_ascii_str(&domain).unwrap();
-                arc_config.connect_async(domain, stream)
-            })
-            .and_then(move |stream| io::write_all(stream, text))
-            .and_then(move |(stream, _)| {
-                let (r, w) = stream.split();
-                io::copy(r, stdout)
-                    .map(drop)
-                    .select2(io::copy(stdin, w).map(drop))
-                    .map_err(|res| res.split().0)
-            })
-            .map(drop)
-            .map_err(|err| eprintln!("{:?}", err))
-    };
-
-    #[cfg(not(unix))]
-    let resp = {
-        use tokio_fs::{ stdin as tokio_stdin, stdout as tokio_stdout };
-
-        let (stdin, stdout) = (tokio_stdin(), tokio_stdout());
-
-        socket
-            .and_then(move |stream| {
-                let domain = webpki::DNSNameRef::try_from_ascii_str(&domain).unwrap();
-                arc_config.connect_async(domain, stream)
-            })
-            .and_then(move |stream| io::write_all(stream, text))
-            .and_then(move |(stream, _)| {
-                let (r, w) = stream.split();
-                io::copy(r, stdout)
-                    .map(drop)
-                    .join(io::copy(stdin, w).map(drop))
-            })
-            .map(drop)
-            .map_err(|err| eprintln!("{:?}", err))
-    };
-
-    tokio::run(resp);
+    tokio::run(done);
 }
