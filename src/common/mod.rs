@@ -3,6 +3,8 @@
 mod vecbuf;
 
 use std::io::{ self, Read, Write };
+#[cfg(feature = "nightly")]
+use std::io::Initializer;
 use rustls::Session;
 #[cfg(feature = "nightly")]
 use rustls::WriteV;
@@ -110,6 +112,11 @@ impl<'a, S: Session, IO: Read + AsyncWrite> WriteTls<'a, S, IO> for Stream<'a, S
 }
 
 impl<'a, S: Session, IO: Read + Write> Read for Stream<'a, S, IO> {
+    #[cfg(feature = "nightly")]
+    unsafe fn initializer(&self) -> Initializer {
+        Initializer::nop()
+    }
+
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         while self.session.wants_read() {
             if let (0, 0) = self.complete_io()? {
