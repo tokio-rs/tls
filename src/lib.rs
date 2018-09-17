@@ -1,10 +1,22 @@
 //! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
 
+#![cfg_attr(feature = "nightly", feature(specialization, read_initializer))]
+
 pub extern crate rustls;
 pub extern crate webpki;
 
-#[cfg(feature = "tokio")] mod tokio_impl;
-#[cfg(feature = "unstable-futures")] mod futures_impl;
+#[cfg(feature = "tokio-support")]
+extern crate tokio;
+#[cfg(feature = "nightly")]
+#[cfg(feature = "tokio-support")]
+extern crate bytes;
+#[cfg(feature = "nightly")]
+#[cfg(feature = "tokio-support")]
+extern crate iovec;
+
+
+mod common;
+#[cfg(feature = "tokio-support")] mod tokio_impl;
 
 use std::io;
 use std::sync::Arc;
@@ -12,8 +24,8 @@ use webpki::DNSNameRef;
 use rustls::{
     Session, ClientSession, ServerSession,
     ClientConfig, ServerConfig,
-    Stream
 };
+use common::Stream;
 
 
 pub struct TlsConnector {

@@ -1,9 +1,8 @@
-extern crate tokio;
-
 use super::*;
-use self::tokio::prelude::*;
-use self::tokio::io::{ AsyncRead, AsyncWrite };
-use self::tokio::prelude::Poll;
+use tokio::prelude::*;
+use tokio::io::{ AsyncRead, AsyncWrite };
+use tokio::prelude::Poll;
+use common::Stream;
 
 
 impl<S: AsyncRead + AsyncWrite> Future for Connect<S> {
@@ -31,16 +30,17 @@ impl<S, C> Future for MidHandshake<S, C>
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        loop {
+        {
             let stream = self.inner.as_mut().unwrap();
-            if !stream.session.is_handshaking() { break };
+            if stream.session.is_handshaking() {
+                let (io, session) = stream.get_mut();
+                let mut stream = Stream::new(session, io);
 
-            let (io, session) = stream.get_mut();
-
-            match session.complete_io(io) {
-                Ok(_) => (),
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::NotReady),
-                Err(e) => return Err(e)
+                match stream.complete_io() {
+                    Ok(_) => (),
+                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::NotReady),
+                    Err(e) => return Err(e)
+                }
             }
         }
 
@@ -52,7 +52,11 @@ impl<S, C> AsyncRead for TlsStream<S, C>
     where
         S: AsyncRead + AsyncWrite,
         C: Session
-{}
+{
+    unsafe fn prepare_uninitialized_buffer(&self, _: &mut [u8]) -> bool {
+        false
+    }
+}
 
 impl<S, C> AsyncWrite for TlsStream<S, C>
     where

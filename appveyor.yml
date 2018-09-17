@@ -13,7 +13,7 @@ install:
 build: false
 
 test_script:
-    - 'cargo test --all-features'
+    - 'cargo test'
     - 'cd examples/server'
     - 'cargo check'
     - 'cd ../../examples/client'
