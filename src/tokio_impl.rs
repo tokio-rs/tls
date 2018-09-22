@@ -5,8 +5,8 @@ use tokio::prelude::Poll;
 use common::Stream;
 
 
-impl<S: AsyncRead + AsyncWrite> Future for Connect<S> {
-    type Item = TlsStream<S, ClientSession>;
+impl<IO: AsyncRead + AsyncWrite> Future for Connect<IO> {
+    type Item = TlsStream<IO, ClientSession>;
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -14,8 +14,8 @@ impl<S: AsyncRead + AsyncWrite> Future for Connect<S> {
     }
 }
 
-impl<S: AsyncRead + AsyncWrite> Future for Accept<S> {
-    type Item = TlsStream<S, ServerSession>;
+impl<IO: AsyncRead + AsyncWrite> Future for Accept<IO> {
+    type Item = TlsStream<IO, ServerSession>;
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -23,10 +23,10 @@ impl<S: AsyncRead + AsyncWrite> Future for Accept<S> {
     }
 }
 
-impl<S, C> Future for MidHandshake<S, C>
-    where S: io::Read + io::Write, C: Session
+impl<IO, S> Future for MidHandshake<IO, S>
+    where IO: io::Read + io::Write, S: Session
 {
-    type Item = TlsStream<S, C>;
+    type Item = TlsStream<IO, S>;
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -48,20 +48,20 @@ impl<S, C> Future for MidHandshake<S, C>
     }
 }
 
-impl<S, C> AsyncRead for TlsStream<S, C>
+impl<IO, S> AsyncRead for TlsStream<IO, S>
     where
-        S: AsyncRead + AsyncWrite,
-        C: Session
+        IO: AsyncRead + AsyncWrite,
+        S: Session
 {
     unsafe fn prepare_uninitialized_buffer(&self, _: &mut [u8]) -> bool {
         false
     }
 }
 
-impl<S, C> AsyncWrite for TlsStream<S, C>
+impl<IO, S> AsyncWrite for TlsStream<IO, S>
     where
-        S: AsyncRead + AsyncWrite,
-        C: Session
+        IO: AsyncRead + AsyncWrite,
+        S: Session
 {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         if !self.is_shutdown {
