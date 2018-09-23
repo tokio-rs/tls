@@ -20,6 +20,8 @@ mod common;
 
 use std::io;
 use std::sync::Arc;
+#[cfg(feature = "nightly")]
+use std::io::Initializer;
 use webpki::DNSNameRef;
 use rustls::{
     Session, ClientSession, ServerSession,
