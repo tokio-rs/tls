@@ -12,9 +12,10 @@ use rustls::WriteV;
 #[cfg(feature = "tokio-support")]
 use tokio::io::AsyncWrite;
 
+
 pub struct Stream<'a, S: 'a, IO: 'a> {
-    session: &'a mut S,
-    io: &'a mut IO
+    pub session: &'a mut S,
+    pub io: &'a mut IO
 }
 
 pub trait WriteTls<'a, S: Session, IO: Read + Write>: Read + Write {

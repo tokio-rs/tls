@@ -129,9 +129,11 @@ impl<IO, S> TlsStream<IO, S> {
     }
 }
 
-impl<IO, S> From<(IO, S)> for TlsStream<IO, S> {
+impl<IO, S: Session> From<(IO, S)> for TlsStream<IO, S> {
     #[inline]
     fn from((io, session): (IO, S)) -> TlsStream<IO, S> {
+        assert!(!session.is_handshaking());
+
         TlsStream {
             is_shutdown: false,
             eof: false,

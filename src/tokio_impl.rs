@@ -5,6 +5,17 @@ use tokio::prelude::Poll;
 use common::Stream;
 
 
+macro_rules! try_async {
+    ( $e:expr ) => {
+        match $e {
+            Ok(n) => n,
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock =>
+                return Ok(Async::NotReady),
+            Err(e) => return Err(e)
+        }
+    }
+}
+
 impl<IO: AsyncRead + AsyncWrite> Future for Connect<IO> {
     type Item = TlsStream<IO, ClientSession>;
     type Error = io::Error;
@@ -24,7 +35,9 @@ impl<IO: AsyncRead + AsyncWrite> Future for Accept<IO> {
 }
 
 impl<IO, S> Future for MidHandshake<IO, S>
-    where IO: io::Read + io::Write, S: Session
+where
+    IO: io::Read + io::Write,
+    S: Session
 {
     type Item = TlsStream<IO, S>;
     type Error = io::Error;
@@ -32,15 +45,15 @@ impl<IO, S> Future for MidHandshake<IO, S>
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         {
             let stream = self.inner.as_mut().unwrap();
-            if stream.session.is_handshaking() {
-                let (io, session) = stream.get_mut();
-                let mut stream = Stream::new(session, io);
+            let (io, session) = stream.get_mut();
+            let mut stream = Stream::new(session, io);
 
-                match stream.complete_io() {
-                    Ok(_) => (),
-                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::NotReady),
-                    Err(e) => return Err(e)
-                }
+            if stream.session.is_handshaking() {
+                try_async!(stream.complete_io());
+            }
+
+            if stream.session.wants_write() {
+                try_async!(stream.complete_io());
             }
         }
 
@@ -69,12 +82,10 @@ impl<IO, S> AsyncWrite for TlsStream<IO, S>
             self.is_shutdown = true;
         }
 
-        match self.session.complete_io(&mut self.io) {
-            Ok(_) => (),
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::NotReady),
-            Err(e) => return Err(e)
+        {
+            let mut stream = Stream::new(&mut self.session, &mut self.io);
+            try_async!(stream.complete_io());
         }
-
         self.io.shutdown()
     }
 }
