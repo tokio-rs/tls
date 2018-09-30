@@ -1,6 +1,6 @@
 [package]
 name = "tokio-rustls"
-version = "0.8.0-alpha"
+version = "0.8.0"
 authors = ["quininer kel <quininer@live.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/quininer/tokio-rustls"
@@ -18,7 +18,7 @@ appveyor = { repository = "quininer/tokio-rustls" }
 tokio = { version = "0.1.6", optional = true }
 bytes = { version = "0.4", optional = true }
 iovec = { version = "0.1", optional = true }
-rustls = "0.13"
+rustls = "0.14"
 webpki = "0.18.1"
 
 [dev-dependencies]

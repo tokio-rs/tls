@@ -13,17 +13,17 @@ Asynchronous TLS/SSL streams for [Tokio](https://tokio.rs/) using
 
 ```rust
 use webpki::DNSNameRef;
-use tokio_rustls::{ ClientConfigExt, rustls::ClientConfig };
+use tokio_rustls::{ TlsConnector, rustls::ClientConfig };
 
 // ...
 
 let mut config = ClientConfig::new();
 config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-let config = Arc::new(config);
-let domain = DNSNameRef::try_from_ascii_str("www.rust-lang.org").unwrap();
+let config = TlsConnector::from(Arc::new(config));
+let dnsname = DNSNameRef::try_from_ascii_str("www.rust-lang.org").unwrap();
 
 TcpStream::connect(&addr)
-	.and_then(|socket| config.connect_async(domain, socket))
+	.and_then(move |socket| config.connect(dnsname, socket))
 
 // ...
 ```
@@ -35,14 +35,6 @@ See [examples/client](examples/client/src/main.rs). You can run it with:
 ```sh
 cd examples/client
 cargo run -- hsts.badssl.com
-```
-
-Currently on Windows the example client reads from stdin and writes to stdout using
-blocking I/O. Until this is fixed, do something this on Windows:
-
-```sh
-cd examples/client
-echo | cargo run -- hsts.badssl.com
 ```
 
 ### Server Example Program
