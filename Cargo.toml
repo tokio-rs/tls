@@ -15,7 +15,8 @@ travis-ci = { repository = "quininer/tokio-rustls" }
 appveyor = { repository = "quininer/tokio-rustls" }
 
 [dependencies]
-tokio = { version = "0.1.6", optional = true }
+futures = { version = "0.1", optional = true }
+tokio-io = { version = "0.1.6", optional = true }
 bytes = { version = "0.4", optional = true }
 iovec = { version = "0.1", optional = true }
 rustls = "0.14"
@@ -28,4 +29,4 @@ lazy_static = "1"
 [features]
 default = ["tokio-support"]
 nightly = ["bytes", "iovec"]
-tokio-support = ["tokio"]
+tokio-support = ["futures", "tokio-io"]
