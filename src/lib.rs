@@ -6,7 +6,9 @@ pub extern crate rustls;
 pub extern crate webpki;
 
 #[cfg(feature = "tokio-support")]
-extern crate tokio;
+extern crate futures;
+#[cfg(feature = "tokio-support")]
+extern crate tokio_io;
 #[cfg(feature = "nightly")]
 #[cfg(feature = "tokio-support")]
 extern crate bytes;

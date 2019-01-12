@@ -1,7 +1,6 @@
 use super::*;
-use tokio::prelude::*;
-use tokio::io::{ AsyncRead, AsyncWrite };
-use tokio::prelude::Poll;
+use tokio_io::{ AsyncRead, AsyncWrite };
+use futures::{Async, Future, Poll};
 use common::Stream;
 
 

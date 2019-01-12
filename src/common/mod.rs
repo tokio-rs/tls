@@ -10,7 +10,7 @@ use rustls::Session;
 use rustls::WriteV;
 #[cfg(feature = "nightly")]
 #[cfg(feature = "tokio-support")]
-use tokio::io::AsyncWrite;
+use tokio_io::AsyncWrite;
 
 
 pub struct Stream<'a, S: 'a, IO: 'a> {
@@ -91,7 +91,7 @@ impl<'a, S: Session, IO: Read + Write> WriteTls<'a, S, IO> for Stream<'a, S, IO>
 #[cfg(feature = "tokio-support")]
 impl<'a, S: Session, IO: Read + AsyncWrite> WriteTls<'a, S, IO> for Stream<'a, S, IO> {
     fn write_tls(&mut self) -> io::Result<usize> {
-        use tokio::prelude::Async;
+        use futures::Async;
         use self::vecbuf::VecBuf;
 
         struct V<'a, IO: 'a>(&'a mut IO);
