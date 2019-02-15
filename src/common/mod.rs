@@ -1,16 +1,9 @@
-#[cfg(feature = "nightly")]
-#[cfg(feature = "tokio-support")]
 mod vecbuf;
 
 use std::io::{ self, Read, Write };
-#[cfg(feature = "nightly")]
-use std::io::Initializer;
 use rustls::Session;
-#[cfg(feature = "nightly")]
 use rustls::WriteV;
-#[cfg(feature = "nightly")]
-#[cfg(feature = "tokio-support")]
-use tokio_io::AsyncWrite;
+use tokio_io::{ AsyncRead, AsyncWrite };
 
 
 pub struct Stream<'a, S: 'a, IO: 'a> {
@@ -18,11 +11,11 @@ pub struct Stream<'a, S: 'a, IO: 'a> {
     pub io: &'a mut IO
 }
 
-pub trait WriteTls<'a, S: Session, IO: Read + Write>: Read + Write {
+pub trait WriteTls<'a, S: Session, IO: AsyncRead + AsyncWrite>: Read + Write {
     fn write_tls(&mut self) -> io::Result<usize>;
 }
 
-impl<'a, S: Session, IO: Read + Write> Stream<'a, S, IO> {
+impl<'a, S: Session, IO: AsyncRead + AsyncWrite> Stream<'a, S, IO> {
     pub fn new(session: &'a mut S, io: &'a mut IO) -> Self {
         Stream { session, io }
     }
@@ -73,23 +66,7 @@ impl<'a, S: Session, IO: Read + Write> Stream<'a, S, IO> {
     }
 }
 
-#[cfg(not(feature = "nightly"))]
-impl<'a, S: Session, IO: Read + Write> WriteTls<'a, S, IO> for Stream<'a, S, IO> {
-    fn write_tls(&mut self) -> io::Result<usize> {
-        self.session.write_tls(self.io)
-    }
-}
-
-#[cfg(feature = "nightly")]
-impl<'a, S: Session, IO: Read + Write> WriteTls<'a, S, IO> for Stream<'a, S, IO> {
-    default fn write_tls(&mut self) -> io::Result<usize> {
-        self.session.write_tls(self.io)
-    }
-}
-
-#[cfg(feature = "nightly")]
-#[cfg(feature = "tokio-support")]
-impl<'a, S: Session, IO: Read + AsyncWrite> WriteTls<'a, S, IO> for Stream<'a, S, IO> {
+impl<'a, S: Session, IO: AsyncRead + AsyncWrite> WriteTls<'a, S, IO> for Stream<'a, S, IO> {
     fn write_tls(&mut self) -> io::Result<usize> {
         use futures::Async;
         use self::vecbuf::VecBuf;
@@ -112,12 +89,7 @@ impl<'a, S: Session, IO: Read + AsyncWrite> WriteTls<'a, S, IO> for Stream<'a, S
     }
 }
 
-impl<'a, S: Session, IO: Read + Write> Read for Stream<'a, S, IO> {
-    #[cfg(feature = "nightly")]
-    unsafe fn initializer(&self) -> Initializer {
-        Initializer::nop()
-    }
-
+impl<'a, S: Session, IO: AsyncRead + AsyncWrite> Read for Stream<'a, S, IO> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         while self.session.wants_read() {
             if let (0, 0) = self.complete_io()? {
@@ -128,7 +100,7 @@ impl<'a, S: Session, IO: Read + Write> Read for Stream<'a, S, IO> {
     }
 }
 
-impl<'a, S: Session, IO: Read + Write> io::Write for Stream<'a, S, IO> {
+impl<'a, S: Session, IO: AsyncRead + AsyncWrite> Write for Stream<'a, S, IO> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let len = self.session.write(buf)?;
         while self.session.wants_write() {

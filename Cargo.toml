@@ -1,6 +1,6 @@
 [package]
 name = "tokio-rustls"
-version = "0.9.0"
+version = "0.10.0-alpha"
 authors = ["quininer kel <quininer@live.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/quininer/tokio-rustls"
@@ -15,18 +15,13 @@ travis-ci = { repository = "quininer/tokio-rustls" }
 appveyor = { repository = "quininer/tokio-rustls" }
 
 [dependencies]
-futures = { version = "0.1", optional = true }
-tokio-io = { version = "0.1.6", optional = true }
-bytes = { version = "0.4", optional = true }
-iovec = { version = "0.1", optional = true }
+futures = "0.1"
+tokio-io = "0.1.6"
+bytes = "0.4"
+iovec = "0.1"
 rustls = "0.15"
 webpki = "0.19"
 
 [dev-dependencies]
 tokio = "0.1.6"
 lazy_static = "1"
-
-[features]
-default = ["tokio-support"]
-nightly = ["bytes", "iovec"]
-tokio-support = ["futures", "tokio-io"]

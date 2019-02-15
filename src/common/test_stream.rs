@@ -7,6 +7,8 @@ use rustls::{
     ServerSession, ClientSession,
     Session, NoClientAuth
 };
+use futures::{ Async, Poll };
+use tokio_io::{ AsyncRead, AsyncWrite };
 use super::Stream;
 
 
@@ -31,6 +33,13 @@ impl<'a> Write for Good<'a> {
     }
 }
 
+impl<'a> AsyncRead for Good<'a> {}
+impl<'a> AsyncWrite for Good<'a> {
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
+        Ok(Async::Ready(()))
+    }
+}
+
 struct Bad(bool);
 
 impl Read for Bad {
@@ -50,6 +59,13 @@ impl Write for Bad {
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+impl AsyncRead for Bad {}
+impl AsyncWrite for Bad {
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
+        Ok(Async::Ready(()))
     }
 }
 

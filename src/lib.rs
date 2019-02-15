@@ -1,34 +1,25 @@
 //! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
 
-#![cfg_attr(feature = "nightly", feature(specialization, read_initializer))]
-
 pub extern crate rustls;
 pub extern crate webpki;
 
-#[cfg(feature = "tokio-support")]
 extern crate futures;
-#[cfg(feature = "tokio-support")]
 extern crate tokio_io;
-#[cfg(feature = "nightly")]
-#[cfg(feature = "tokio-support")]
 extern crate bytes;
-#[cfg(feature = "nightly")]
-#[cfg(feature = "tokio-support")]
 extern crate iovec;
 
 
 mod common;
-#[cfg(feature = "tokio-support")] mod tokio_impl;
+mod tokio_impl;
 
 use std::io;
 use std::sync::Arc;
-#[cfg(feature = "nightly")]
-use std::io::Initializer;
 use webpki::DNSNameRef;
 use rustls::{
     Session, ClientSession, ServerSession,
     ClientConfig, ServerConfig,
 };
+use tokio_io::{ AsyncRead, AsyncWrite };
 use common::Stream;
 
 
@@ -56,7 +47,7 @@ impl From<Arc<ServerConfig>> for TlsAcceptor {
 
 impl TlsConnector {
     pub fn connect<IO>(&self, domain: DNSNameRef, stream: IO) -> Connect<IO>
-        where IO: io::Read + io::Write
+        where IO: AsyncRead + AsyncWrite
     {
         Self::connect_with_session(stream, ClientSession::new(&self.inner, domain))
     }
@@ -64,7 +55,7 @@ impl TlsConnector {
     #[inline]
     pub fn connect_with_session<IO>(stream: IO, session: ClientSession)
         -> Connect<IO>
-        where IO: io::Read + io::Write
+        where IO: AsyncRead + AsyncWrite
     {
         Connect(MidHandshake {
             inner: Some(TlsStream { session, io: stream, is_shutdown: false, eof: false })
@@ -74,14 +65,14 @@ impl TlsConnector {
 
 impl TlsAcceptor {
     pub fn accept<IO>(&self, stream: IO) -> Accept<IO>
-        where IO: io::Read + io::Write,
+        where IO: AsyncRead + AsyncWrite,
     {
         Self::accept_with_session(stream, ServerSession::new(&self.inner))
     }
 
     #[inline]
     pub fn accept_with_session<IO>(stream: IO, session: ServerSession) -> Accept<IO>
-        where IO: io::Read + io::Write
+        where IO: AsyncRead + AsyncWrite
     {
         Accept(MidHandshake {
             inner: Some(TlsStream { session, io: stream, is_shutdown: false, eof: false })
@@ -145,13 +136,8 @@ impl<IO, S: Session> From<(IO, S)> for TlsStream<IO, S> {
 }
 
 impl<IO, S> io::Read for TlsStream<IO, S>
-    where IO: io::Read + io::Write, S: Session
+    where IO: AsyncRead + AsyncWrite, S: Session
 {
-    #[cfg(feature = "nightly")]
-    unsafe fn initializer(&self) -> Initializer {
-        Initializer::nop()
-    }
-
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.eof {
             return Ok(0);
@@ -172,7 +158,7 @@ impl<IO, S> io::Read for TlsStream<IO, S>
 }
 
 impl<IO, S> io::Write for TlsStream<IO, S>
-    where IO: io::Read + io::Write, S: Session
+    where IO: AsyncRead + AsyncWrite, S: Session
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         Stream::new(&mut self.session, &mut self.io).write(buf)

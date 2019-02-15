@@ -35,7 +35,7 @@ impl<IO: AsyncRead + AsyncWrite> Future for Accept<IO> {
 
 impl<IO, S> Future for MidHandshake<IO, S>
 where
-    IO: io::Read + io::Write,
+    IO: AsyncRead + AsyncWrite,
     S: Session
 {
     type Item = TlsStream<IO, S>;
