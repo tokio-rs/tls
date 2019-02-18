@@ -48,6 +48,10 @@ impl From<Arc<ServerConfig>> for TlsAcceptor {
 }
 
 impl TlsConnector {
+    /// Enable 0-RTT.
+    ///
+    /// Note that you want to use 0-RTT.
+    /// You must set `enable_early_data` to `true` in `ClientConfig`.
     pub fn early_data(mut self, flag: bool) -> TlsConnector {
         self.early_data = flag;
         self
@@ -186,7 +190,6 @@ where IO: AsyncRead + AsyncWrite
 
                 // end
                 self.state = TlsState::Stream;
-                *pos = 0;
                 data.clear();
                 stream.read(buf)
             },
@@ -266,7 +269,6 @@ where IO: AsyncRead + AsyncWrite
 
                 // end
                 self.state = TlsState::Stream;
-                *pos = 0;
                 data.clear();
                 stream.write(buf)
             },
@@ -293,3 +295,6 @@ where IO: AsyncRead + AsyncWrite
         self.io.flush()
     }
 }
+
+#[cfg(test)]
+mod test_0rtt;

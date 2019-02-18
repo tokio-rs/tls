@@ -25,3 +25,4 @@ webpki = "0.19"
 [dev-dependencies]
 tokio = "0.1.6"
 lazy_static = "1"
+webpki-roots = "0.16"
