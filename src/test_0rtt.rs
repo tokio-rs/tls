@@ -8,12 +8,12 @@ use std::net::ToSocketAddrs;
 use self::tokio::io as aio;
 use self::tokio::prelude::*;
 use self::tokio::net::TcpStream;
-use rustls::{ ClientConfig, ClientSession };
-use ::{ TlsConnector, TlsStream };
+use rustls::ClientConfig;
+use ::{ TlsConnector, client::TlsStream };
 
 
 fn get(config: Arc<ClientConfig>, domain: &str, rtt0: bool)
-    -> io::Result<(TlsStream<TcpStream, ClientSession>, String)>
+    -> io::Result<(TlsStream<TcpStream>, String)>
 {
     let config = TlsConnector::from(config).early_data(rtt0);
     let input = format!("GET / HTTP/1.0\r\nHost: {}\r\n\r\n", domain);
