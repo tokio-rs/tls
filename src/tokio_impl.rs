@@ -42,47 +42,80 @@ where
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        {
-            let stream = self.inner.as_mut().unwrap();
-            let (io, session) = stream.get_mut();
-            let mut stream = Stream::new(session, io);
+        match self {
+            MidHandshake::Handshaking(stream) => {
+                let (io, session) = stream.get_mut();
+                let mut stream = Stream::new(io, session);
 
-            if stream.session.is_handshaking() {
-                try_async!(stream.complete_io());
-            }
+                if stream.session.is_handshaking() {
+                    try_async!(stream.complete_io());
+                }
 
-            if stream.session.wants_write() {
-                try_async!(stream.complete_io());
-            }
+                if stream.session.wants_write() {
+                    try_async!(stream.complete_io());
+                }
+            },
+            _ => ()
         }
 
-        Ok(Async::Ready(self.inner.take().unwrap()))
+        match mem::replace(self, MidHandshake::End) {
+            MidHandshake::Handshaking(stream)
+            | MidHandshake::EarlyData(stream) => Ok(Async::Ready(stream)),
+            MidHandshake::End => panic!()
+        }
     }
 }
 
-impl<IO, S> AsyncRead for TlsStream<IO, S>
-    where
-        IO: AsyncRead + AsyncWrite,
-        S: Session
+impl<IO> AsyncRead for TlsStream<IO, ClientSession>
+where IO: AsyncRead + AsyncWrite
 {
     unsafe fn prepare_uninitialized_buffer(&self, _: &mut [u8]) -> bool {
         false
     }
 }
 
-impl<IO, S> AsyncWrite for TlsStream<IO, S>
-    where
-        IO: AsyncRead + AsyncWrite,
-        S: Session
+impl<IO> AsyncRead for TlsStream<IO, ServerSession>
+where IO: AsyncRead + AsyncWrite
+{
+    unsafe fn prepare_uninitialized_buffer(&self, _: &mut [u8]) -> bool {
+        false
+    }
+}
+
+impl<IO> AsyncWrite for TlsStream<IO, ClientSession>
+where IO: AsyncRead + AsyncWrite,
 {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
-        if !self.is_shutdown {
-            self.session.send_close_notify();
-            self.is_shutdown = true;
+        match self.state {
+            TlsState::Shutdown => (),
+            _ => {
+                self.session.send_close_notify();
+                self.state = TlsState::Shutdown;
+            }
         }
 
         {
-            let mut stream = Stream::new(&mut self.session, &mut self.io);
+            let mut stream = Stream::new(&mut self.io, &mut self.session);
+            try_async!(stream.complete_io());
+        }
+        self.io.shutdown()
+    }
+}
+
+impl<IO> AsyncWrite for TlsStream<IO, ServerSession>
+where IO: AsyncRead + AsyncWrite,
+{
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
+        match self.state {
+            TlsState::Shutdown => (),
+            _ => {
+                self.session.send_close_notify();
+                self.state = TlsState::Shutdown;
+            }
+        }
+
+        {
+            let mut stream = Stream::new(&mut self.io, &mut self.session);
             try_async!(stream.complete_io());
         }
         self.io.shutdown()

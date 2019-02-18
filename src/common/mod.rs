@@ -6,18 +6,18 @@ use rustls::WriteV;
 use tokio_io::{ AsyncRead, AsyncWrite };
 
 
-pub struct Stream<'a, S: 'a, IO: 'a> {
-    pub session: &'a mut S,
-    pub io: &'a mut IO
+pub struct Stream<'a, IO: 'a, S: 'a> {
+    pub io: &'a mut IO,
+    pub session: &'a mut S
 }
 
-pub trait WriteTls<'a, S: Session, IO: AsyncRead + AsyncWrite>: Read + Write {
+pub trait WriteTls<'a, IO: AsyncRead + AsyncWrite, S: Session>: Read + Write {
     fn write_tls(&mut self) -> io::Result<usize>;
 }
 
-impl<'a, S: Session, IO: AsyncRead + AsyncWrite> Stream<'a, S, IO> {
-    pub fn new(session: &'a mut S, io: &'a mut IO) -> Self {
-        Stream { session, io }
+impl<'a, IO: AsyncRead + AsyncWrite, S: Session> Stream<'a, IO, S> {
+    pub fn new(io: &'a mut IO, session: &'a mut S) -> Self {
+        Stream { io, session }
     }
 
     pub fn complete_io(&mut self) -> io::Result<(usize, usize)> {
@@ -66,7 +66,7 @@ impl<'a, S: Session, IO: AsyncRead + AsyncWrite> Stream<'a, S, IO> {
     }
 }
 
-impl<'a, S: Session, IO: AsyncRead + AsyncWrite> WriteTls<'a, S, IO> for Stream<'a, S, IO> {
+impl<'a, IO: AsyncRead + AsyncWrite, S: Session> WriteTls<'a, IO, S> for Stream<'a, IO, S> {
     fn write_tls(&mut self) -> io::Result<usize> {
         use futures::Async;
         use self::vecbuf::VecBuf;
@@ -89,7 +89,7 @@ impl<'a, S: Session, IO: AsyncRead + AsyncWrite> WriteTls<'a, S, IO> for Stream<
     }
 }
 
-impl<'a, S: Session, IO: AsyncRead + AsyncWrite> Read for Stream<'a, S, IO> {
+impl<'a, IO: AsyncRead + AsyncWrite, S: Session> Read for Stream<'a, IO, S> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         while self.session.wants_read() {
             if let (0, 0) = self.complete_io()? {
@@ -100,7 +100,7 @@ impl<'a, S: Session, IO: AsyncRead + AsyncWrite> Read for Stream<'a, S, IO> {
     }
 }
 
-impl<'a, S: Session, IO: AsyncRead + AsyncWrite> Write for Stream<'a, S, IO> {
+impl<'a, IO: AsyncRead + AsyncWrite, S: Session> Write for Stream<'a, IO, S> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let len = self.session.write(buf)?;
         while self.session.wants_write() {

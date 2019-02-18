@@ -12,12 +12,13 @@ extern crate iovec;
 mod common;
 mod tokio_impl;
 
-use std::io;
+use std::mem;
+use std::io::{ self, Write };
 use std::sync::Arc;
 use webpki::DNSNameRef;
 use rustls::{
     Session, ClientSession, ServerSession,
-    ClientConfig, ServerConfig,
+    ClientConfig, ServerConfig
 };
 use tokio_io::{ AsyncRead, AsyncWrite };
 use common::Stream;
@@ -25,7 +26,8 @@ use common::Stream;
 
 #[derive(Clone)]
 pub struct TlsConnector {
-    inner: Arc<ClientConfig>
+    inner: Arc<ClientConfig>,
+    early_data: bool
 }
 
 #[derive(Clone)]
@@ -35,7 +37,7 @@ pub struct TlsAcceptor {
 
 impl From<Arc<ClientConfig>> for TlsConnector {
     fn from(inner: Arc<ClientConfig>) -> TlsConnector {
-        TlsConnector { inner }
+        TlsConnector { inner, early_data: false }
     }
 }
 
@@ -46,19 +48,39 @@ impl From<Arc<ServerConfig>> for TlsAcceptor {
 }
 
 impl TlsConnector {
+    pub fn early_data(mut self, flag: bool) -> TlsConnector {
+        self.early_data = flag;
+        self
+    }
+
     pub fn connect<IO>(&self, domain: DNSNameRef, stream: IO) -> Connect<IO>
         where IO: AsyncRead + AsyncWrite
     {
-        Self::connect_with_session(stream, ClientSession::new(&self.inner, domain))
+        self.connect_with(domain, stream, |_| ())
     }
 
     #[inline]
-    pub fn connect_with_session<IO>(stream: IO, session: ClientSession)
+    pub fn connect_with<IO, F>(&self, domain: DNSNameRef, stream: IO, f: F)
         -> Connect<IO>
-        where IO: AsyncRead + AsyncWrite
+    where
+        IO: AsyncRead + AsyncWrite,
+        F: FnOnce(&mut ClientSession)
     {
-        Connect(MidHandshake {
-            inner: Some(TlsStream { session, io: stream, is_shutdown: false, eof: false })
+        let mut session = ClientSession::new(&self.inner, domain);
+        f(&mut session);
+
+        Connect(if self.early_data {
+            MidHandshake::EarlyData(TlsStream {
+                session, io: stream,
+                state: TlsState::EarlyData,
+                early_data: (0, Vec::new())
+            })
+        } else {
+            MidHandshake::Handshaking(TlsStream {
+                session, io: stream,
+                state: TlsState::Stream,
+                early_data: (0, Vec::new())
+            })
         })
     }
 }
@@ -67,16 +89,24 @@ impl TlsAcceptor {
     pub fn accept<IO>(&self, stream: IO) -> Accept<IO>
         where IO: AsyncRead + AsyncWrite,
     {
-        Self::accept_with_session(stream, ServerSession::new(&self.inner))
+        self.accept_with(stream, |_| ())
     }
 
     #[inline]
-    pub fn accept_with_session<IO>(stream: IO, session: ServerSession) -> Accept<IO>
-        where IO: AsyncRead + AsyncWrite
+    pub fn accept_with<IO, F>(&self, stream: IO, f: F)
+        -> Accept<IO>
+    where
+        IO: AsyncRead + AsyncWrite,
+        F: FnOnce(&mut ServerSession)
     {
-        Accept(MidHandshake {
-            inner: Some(TlsStream { session, io: stream, is_shutdown: false, eof: false })
-        })
+        let mut session = ServerSession::new(&self.inner);
+        f(&mut session);
+
+        Accept(MidHandshake::Handshaking(TlsStream {
+            session, io: stream,
+            state: TlsState::Stream,
+            early_data: (0, Vec::new())
+        }))
     }
 }
 
@@ -89,9 +119,10 @@ pub struct Connect<IO>(MidHandshake<IO, ClientSession>);
 /// once the accept handshake has finished.
 pub struct Accept<IO>(MidHandshake<IO, ServerSession>);
 
-
-struct MidHandshake<IO, S> {
-    inner: Option<TlsStream<IO, S>>
+enum MidHandshake<IO, S> {
+    Handshaking(TlsStream<IO, S>),
+    EarlyData(TlsStream<IO, S>),
+    End
 }
 
 
@@ -99,10 +130,18 @@ struct MidHandshake<IO, S> {
 /// protocol.
 #[derive(Debug)]
 pub struct TlsStream<IO, S> {
-    is_shutdown: bool,
-    eof: bool,
     io: IO,
-    session: S
+    session: S,
+    state: TlsState,
+    early_data: (usize, Vec<u8>)
+}
+
+#[derive(Debug)]
+enum TlsState {
+    EarlyData,
+    Stream,
+    Eof,
+    Shutdown
 }
 
 impl<IO, S> TlsStream<IO, S> {
@@ -122,50 +161,135 @@ impl<IO, S> TlsStream<IO, S> {
     }
 }
 
-impl<IO, S: Session> From<(IO, S)> for TlsStream<IO, S> {
-    #[inline]
-    fn from((io, session): (IO, S)) -> TlsStream<IO, S> {
-        assert!(!session.is_handshaking());
-
-        TlsStream {
-            is_shutdown: false,
-            eof: false,
-            io, session
-        }
-    }
-}
-
-impl<IO, S> io::Read for TlsStream<IO, S>
-    where IO: AsyncRead + AsyncWrite, S: Session
+impl<IO> io::Read for TlsStream<IO, ClientSession>
+where IO: AsyncRead + AsyncWrite
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if self.eof {
-            return Ok(0);
-        }
+        let mut stream = Stream::new(&mut self.io, &mut self.session);
 
-        match Stream::new(&mut self.session, &mut self.io).read(buf) {
-            Ok(0) => { self.eof = true; Ok(0) },
-            Ok(n) => Ok(n),
-            Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => {
-                self.eof = true;
-                self.is_shutdown = true;
-                self.session.send_close_notify();
-                Ok(0)
+        match self.state {
+            TlsState::EarlyData => {
+                let (pos, data) = &mut self.early_data;
+
+                // complete handshake
+                if stream.session.is_handshaking() {
+                    stream.complete_io()?;
+                }
+
+                // write early data (fallback)
+                if !stream.session.is_early_data_accepted() {
+                    while *pos < data.len() {
+                        let len = stream.write(&data[*pos..])?;
+                        *pos += len;
+                    }
+                }
+
+                // end
+                self.state = TlsState::Stream;
+                *pos = 0;
+                data.clear();
+                stream.read(buf)
             },
-            Err(e) => Err(e)
+            TlsState::Stream => match stream.read(buf) {
+                Ok(0) => {
+                    self.state = TlsState::Eof;
+                    Ok(0)
+                },
+                Ok(n) => Ok(n),
+                Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => {
+                    self.state = TlsState::Shutdown;
+                    stream.session.send_close_notify();
+                    Ok(0)
+                },
+                Err(e) => Err(e)
+            },
+            TlsState::Eof | TlsState::Shutdown => Ok(0),
         }
     }
 }
 
-impl<IO, S> io::Write for TlsStream<IO, S>
-    where IO: AsyncRead + AsyncWrite, S: Session
+impl<IO> io::Read for TlsStream<IO, ServerSession>
+where IO: AsyncRead + AsyncWrite
+{
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let mut stream = Stream::new(&mut self.io, &mut self.session);
+
+        match self.state {
+            TlsState::Stream => match stream.read(buf) {
+                Ok(0) => {
+                    self.state = TlsState::Eof;
+                    Ok(0)
+                },
+                Ok(n) => Ok(n),
+                Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => {
+                    self.state = TlsState::Shutdown;
+                    stream.session.send_close_notify();
+                    Ok(0)
+                },
+                Err(e) => Err(e)
+            },
+            TlsState::Eof | TlsState::Shutdown => Ok(0),
+            TlsState::EarlyData => unreachable!()
+        }
+    }
+}
+
+impl<IO> io::Write for TlsStream<IO, ClientSession>
+where IO: AsyncRead + AsyncWrite
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        Stream::new(&mut self.session, &mut self.io).write(buf)
+        let mut stream = Stream::new(&mut self.io, &mut self.session);
+
+        match self.state {
+            TlsState::EarlyData => {
+                let (pos, data) = &mut self.early_data;
+
+                // write early data
+                if let Some(mut early_data) = stream.session.early_data() {
+                    let len = early_data.write(buf)?;
+                    data.extend_from_slice(&buf[..len]);
+                    return Ok(len);
+                }
+
+                // complete handshake
+                if stream.session.is_handshaking() {
+                    stream.complete_io()?;
+                }
+
+                // write early data (fallback)
+                if !stream.session.is_early_data_accepted() {
+                    while *pos < data.len() {
+                        let len = stream.write(&data[*pos..])?;
+                        *pos += len;
+                    }
+                }
+
+                // end
+                self.state = TlsState::Stream;
+                *pos = 0;
+                data.clear();
+                stream.write(buf)
+            },
+            _ => stream.write(buf)
+        }
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        Stream::new(&mut self.session, &mut self.io).flush()?;
+        Stream::new(&mut self.io, &mut self.session).flush()?;
+        self.io.flush()
+    }
+}
+
+impl<IO> io::Write for TlsStream<IO, ServerSession>
+where IO: AsyncRead + AsyncWrite
+{
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let mut stream = Stream::new(&mut self.io, &mut self.session);
+        stream.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Stream::new(&mut self.io, &mut self.session).flush()?;
         self.io.flush()
     }
 }

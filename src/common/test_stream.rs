@@ -80,7 +80,7 @@ fn stream_good() -> io::Result<()> {
 
     {
         let mut good = Good(&mut server);
-        let mut stream = Stream::new(&mut client, &mut good);
+        let mut stream = Stream::new(&mut good, &mut client);
 
         let mut buf = Vec::new();
         stream.read_to_end(&mut buf)?;
@@ -102,7 +102,7 @@ fn stream_bad() -> io::Result<()> {
     client.set_buffer_limit(1024);
 
     let mut bad = Bad(true);
-    let mut stream = Stream::new(&mut client, &mut bad);
+    let mut stream = Stream::new(&mut bad, &mut client);
     assert_eq!(stream.write(&[0x42; 8])?, 8);
     assert_eq!(stream.write(&[0x42; 8])?, 8);
     let r = stream.write(&[0x00; 1024])?; // fill buffer
@@ -121,7 +121,7 @@ fn stream_handshake() -> io::Result<()> {
 
     {
         let mut good = Good(&mut server);
-        let mut stream = Stream::new(&mut client, &mut good);
+        let mut stream = Stream::new(&mut good, &mut client);
         let (r, w) = stream.complete_io()?;
 
         assert!(r > 0);
@@ -141,7 +141,7 @@ fn stream_handshake_eof() -> io::Result<()> {
     let (_, mut client) = make_pair();
 
     let mut bad = Bad(false);
-    let mut stream = Stream::new(&mut client, &mut bad);
+    let mut stream = Stream::new(&mut bad, &mut client);
     let r = stream.complete_io();
 
     assert_eq!(r.unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
@@ -171,7 +171,7 @@ fn make_pair() -> (ServerSession, ClientSession) {
 
 fn do_handshake(client: &mut ClientSession, server: &mut ServerSession) {
     let mut good = Good(server);
-    let mut stream = Stream::new(client, &mut good);
+    let mut stream = Stream::new(&mut good, client);
     stream.complete_io().unwrap();
     stream.complete_io().unwrap();
 }
