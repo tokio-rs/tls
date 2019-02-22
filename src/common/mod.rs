@@ -84,8 +84,8 @@ impl<'a, IO: AsyncRead + AsyncWrite, S: Session> WriteTls<'a, IO, S> for Stream<
             }
         }
 
-        let mut vecbuf = V(self.io);
-        self.session.writev_tls(&mut vecbuf)
+        let mut vecio = V(self.io);
+        self.session.writev_tls(&mut vecio)
     }
 }
 

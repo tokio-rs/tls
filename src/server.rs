@@ -48,20 +48,17 @@ where IO: AsyncRead + AsyncWrite,
 
     #[inline]
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self {
-            MidHandshake::Handshaking(stream) => {
-                let (io, session) = stream.get_mut();
-                let mut stream = Stream::new(io, session);
+        if let MidHandshake::Handshaking(stream) = self {
+            let (io, session) = stream.get_mut();
+            let mut stream = Stream::new(io, session);
 
-                if stream.session.is_handshaking() {
-                    try_nb!(stream.complete_io());
-                }
+            if stream.session.is_handshaking() {
+                try_nb!(stream.complete_io());
+            }
 
-                if stream.session.wants_write() {
-                    try_nb!(stream.complete_io());
-                }
-            },
-            _ => ()
+            if stream.session.wants_write() {
+                try_nb!(stream.complete_io());
+            }
         }
 
         match mem::replace(self, MidHandshake::End) {
