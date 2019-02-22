@@ -110,7 +110,13 @@ impl<'a, IO: AsyncRead + AsyncWrite, S: Session> Write for Stream<'a, IO, S> {
                 Err(err) => return Err(err)
             }
         }
-        Ok(len)
+
+        if len == 0 && !buf.is_empty() {
+            // not write zero
+            Err(io::ErrorKind::WouldBlock.into())
+        } else {
+            Ok(len)
+        }
     }
 
     fn flush(&mut self) -> io::Result<()> {

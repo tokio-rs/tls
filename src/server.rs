@@ -130,10 +130,8 @@ where IO: AsyncRead + AsyncWrite,
             }
         }
 
-        {
-            let mut stream = Stream::new(&mut self.io, &mut self.session);
-            try_nb!(stream.complete_io());
-        }
-        self.io.shutdown()
+        let mut stream = Stream::new(&mut self.io, &mut self.session);
+        try_nb!(stream.complete_io());
+        stream.io.shutdown()
     }
 }

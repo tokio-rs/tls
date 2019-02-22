@@ -24,12 +24,14 @@ use tokio_io::{ AsyncRead, AsyncWrite, try_nb };
 use common::Stream;
 
 
+/// A wrapper around a `rustls::ClientConfig`, providing an async `connect` method.
 #[derive(Clone)]
 pub struct TlsConnector {
     inner: Arc<ClientConfig>,
     early_data: bool
 }
 
+/// A wrapper around a `rustls::ServerConfig`, providing an async `accept` method.
 #[derive(Clone)]
 pub struct TlsAcceptor {
     inner: Arc<ServerConfig>
