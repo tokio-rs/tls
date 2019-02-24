@@ -111,11 +111,16 @@ impl<'a, IO: AsyncRead + AsyncWrite, S: Session> Write for Stream<'a, IO, S> {
             }
         }
 
-        if len == 0 && !buf.is_empty() {
-            // not write zero
-            Err(io::ErrorKind::WouldBlock.into())
-        } else {
+        if len != 0 || buf.is_empty() {
             Ok(len)
+        } else {
+            // not write zero
+            self.session.write(buf)
+                .and_then(|len| if len != 0 {
+                    Ok(len)
+                } else {
+                    Err(io::ErrorKind::WouldBlock.into())
+                })
         }
     }
 
