@@ -1,5 +1,4 @@
 use super::*;
-use std::io::Write;
 use rustls::Session;
 
 
@@ -10,12 +9,14 @@ pub struct TlsStream<IO> {
     pub(crate) io: IO,
     pub(crate) session: ClientSession,
     pub(crate) state: TlsState,
+
+    #[cfg(feature = "early-data")]
     pub(crate) early_data: (usize, Vec<u8>)
 }
 
 #[derive(Debug)]
 pub(crate) enum TlsState {
-    EarlyData,
+    #[cfg(feature = "early-data")] EarlyData,
     Stream,
     Eof,
     Shutdown
@@ -23,7 +24,7 @@ pub(crate) enum TlsState {
 
 pub(crate) enum MidHandshake<IO> {
     Handshaking(TlsStream<IO>),
-    EarlyData(TlsStream<IO>),
+    #[cfg(feature = "early-data")] EarlyData(TlsStream<IO>),
     End
 }
 
@@ -66,8 +67,9 @@ where IO: AsyncRead + AsyncWrite,
         }
 
         match mem::replace(self, MidHandshake::End) {
-            MidHandshake::Handshaking(stream)
-            | MidHandshake::EarlyData(stream) => Ok(Async::Ready(stream)),
+            MidHandshake::Handshaking(stream) => Ok(Async::Ready(stream)),
+            #[cfg(feature = "early-data")]
+            MidHandshake::EarlyData(stream) => Ok(Async::Ready(stream)),
             MidHandshake::End => panic!()
         }
     }
@@ -80,7 +82,10 @@ where IO: AsyncRead + AsyncWrite
         let mut stream = Stream::new(&mut self.io, &mut self.session);
 
         match self.state {
+            #[cfg(feature = "early-data")]
             TlsState::EarlyData => {
+                use std::io::Write;
+
                 let (pos, data) = &mut self.early_data;
 
                 // complete handshake
@@ -126,6 +131,7 @@ where IO: AsyncRead + AsyncWrite
         let mut stream = Stream::new(&mut self.io, &mut self.session);
 
         match self.state {
+            #[cfg(feature = "early-data")]
             TlsState::EarlyData => {
                 let (pos, data) = &mut self.early_data;
 

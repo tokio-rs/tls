@@ -22,6 +22,9 @@ iovec = "0.1"
 rustls = "0.15"
 webpki = "0.19"
 
+[features]
+early-data = []
+
 [dev-dependencies]
 tokio = "0.1.6"
 lazy_static = "1"

@@ -28,6 +28,7 @@ use common::Stream;
 #[derive(Clone)]
 pub struct TlsConnector {
     inner: Arc<ClientConfig>,
+    #[cfg(feature = "early-data")]
     early_data: bool
 }
 
@@ -39,7 +40,11 @@ pub struct TlsAcceptor {
 
 impl From<Arc<ClientConfig>> for TlsConnector {
     fn from(inner: Arc<ClientConfig>) -> TlsConnector {
-        TlsConnector { inner, early_data: false }
+        TlsConnector {
+            inner,
+            #[cfg(feature = "early-data")]
+            early_data: false
+        }
     }
 }
 
@@ -54,6 +59,7 @@ impl TlsConnector {
     ///
     /// Note that you want to use 0-RTT.
     /// You must set `enable_early_data` to `true` in `ClientConfig`.
+    #[cfg(feature = "early-data")]
     pub fn early_data(mut self, flag: bool) -> TlsConnector {
         self.early_data = flag;
         self
@@ -75,19 +81,28 @@ impl TlsConnector {
         let mut session = ClientSession::new(&self.inner, domain);
         f(&mut session);
 
-        Connect(if self.early_data {
-            client::MidHandshake::EarlyData(client::TlsStream {
-                session, io: stream,
-                state: client::TlsState::EarlyData,
-                early_data: (0, Vec::new())
-            })
-        } else {
-            client::MidHandshake::Handshaking(client::TlsStream {
+        #[cfg(not(feature = "early-data"))] {
+            Connect(client::MidHandshake::Handshaking(client::TlsStream {
                 session, io: stream,
                 state: client::TlsState::Stream,
-                early_data: (0, Vec::new())
+            }))
+        }
+
+        #[cfg(feature = "early-data")] {
+            Connect(if self.early_data {
+                client::MidHandshake::EarlyData(client::TlsStream {
+                    session, io: stream,
+                    state: client::TlsState::EarlyData,
+                    early_data: (0, Vec::new())
+                })
+            } else {
+                client::MidHandshake::Handshaking(client::TlsStream {
+                    session, io: stream,
+                    state: client::TlsState::Stream,
+                    early_data: (0, Vec::new())
+                })
             })
-        })
+        }
     }
 }
 
@@ -143,5 +158,6 @@ impl<IO: AsyncRead + AsyncWrite> Future for Accept<IO> {
     }
 }
 
+#[cfg(feature = "early-data")]
 #[cfg(test)]
 mod test_0rtt;
