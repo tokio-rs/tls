@@ -79,45 +79,51 @@ impl<IO> io::Read for TlsStream<IO>
 where IO: AsyncRead + AsyncWrite
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let mut stream = Stream::new(&mut self.io, &mut self.session);
-
         match self.state {
             #[cfg(feature = "early-data")]
             TlsState::EarlyData => {
                 use std::io::Write;
 
-                let (pos, data) = &mut self.early_data;
+                {
+                    let mut stream = Stream::new(&mut self.io, &mut self.session);
+                    let (pos, data) = &mut self.early_data;
 
-                // complete handshake
-                if stream.session.is_handshaking() {
-                    stream.complete_io()?;
-                }
-
-                // write early data (fallback)
-                if !stream.session.is_early_data_accepted() {
-                    while *pos < data.len() {
-                        let len = stream.write(&data[*pos..])?;
-                        *pos += len;
+                    // complete handshake
+                    if stream.session.is_handshaking() {
+                        stream.complete_io()?;
                     }
+
+                    // write early data (fallback)
+                    if !stream.session.is_early_data_accepted() {
+                        while *pos < data.len() {
+                            let len = stream.write(&data[*pos..])?;
+                            *pos += len;
+                        }
+                    }
+
+                    // end
+                    self.state = TlsState::Stream;
+                    data.clear();
                 }
 
-                // end
-                self.state = TlsState::Stream;
-                data.clear();
-                stream.read(buf)
+                self.read(buf)
             },
-            TlsState::Stream => match stream.read(buf) {
-                Ok(0) => {
-                    self.state = TlsState::Eof;
-                    Ok(0)
-                },
-                Ok(n) => Ok(n),
-                Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => {
-                    self.state = TlsState::Shutdown;
-                    stream.session.send_close_notify();
-                    Ok(0)
-                },
-                Err(e) => Err(e)
+            TlsState::Stream => {
+                let mut stream = Stream::new(&mut self.io, &mut self.session);
+
+                match stream.read(buf) {
+                    Ok(0) => {
+                        self.state = TlsState::Eof;
+                        Ok(0)
+                    },
+                    Ok(n) => Ok(n),
+                    Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => {
+                        self.state = TlsState::Shutdown;
+                        stream.session.send_close_notify();
+                        Ok(0)
+                    },
+                    Err(e) => Err(e)
+                }
             },
             TlsState::Eof | TlsState::Shutdown => Ok(0),
         }
