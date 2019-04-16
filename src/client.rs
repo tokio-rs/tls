@@ -1,4 +1,5 @@
 use super::*;
+use std::io::Write;
 use rustls::Session;
 
 
@@ -197,7 +198,7 @@ where IO: AsyncRead + AsyncWrite
         }
 
         let mut stream = Stream::new(&mut self.io, &mut self.session);
-        try_nb!(stream.complete_io());
+        try_nb!(stream.flush());
         stream.io.shutdown()
     }
 }

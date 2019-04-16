@@ -85,7 +85,7 @@ fn stream_good() -> io::Result<()> {
         let mut buf = Vec::new();
         stream.read_to_end(&mut buf)?;
         assert_eq!(buf, FILE);
-        stream.write_all(b"Hello World!")?
+        stream.write_all(b"Hello World!")?;
     }
 
     let mut buf = String::new();
