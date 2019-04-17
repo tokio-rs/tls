@@ -83,8 +83,6 @@ where IO: AsyncRead + AsyncWrite
         match self.state {
             #[cfg(feature = "early-data")]
             TlsState::EarlyData => {
-                use std::io::Write;
-
                 {
                     let mut stream = Stream::new(&mut self.io, &mut self.session);
                     let (pos, data) = &mut self.early_data;
