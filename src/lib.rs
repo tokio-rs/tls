@@ -3,39 +3,68 @@
 pub extern crate rustls;
 pub extern crate webpki;
 
-extern crate futures;
-extern crate tokio_io;
 extern crate bytes;
+extern crate futures;
 extern crate iovec;
+extern crate tokio_io;
 
-mod common;
 pub mod client;
+mod common;
 pub mod server;
 
-use std::{ io, mem };
-use std::sync::Arc;
-use webpki::DNSNameRef;
-use rustls::{
-    ClientSession, ServerSession,
-    ClientConfig, ServerConfig
-};
-use futures::{Async, Future, Poll};
-use tokio_io::{ AsyncRead, AsyncWrite, try_nb };
 use common::Stream;
+use futures::{Async, Future, Poll};
+use rustls::{ClientConfig, ClientSession, ServerConfig, ServerSession};
+use std::sync::Arc;
+use std::{io, mem};
+use tokio_io::{try_nb, AsyncRead, AsyncWrite};
+use webpki::DNSNameRef;
 
+#[derive(Debug, Copy, Clone)]
+pub enum TlsState {
+    #[cfg(feature = "early-data")]
+    EarlyData,
+    Stream,
+    ReadShutdown,
+    WriteShutdown,
+    FullyShutdown,
+}
+
+impl TlsState {
+    pub(crate) fn shutdown_read(&mut self) {
+        match *self {
+            TlsState::WriteShutdown | TlsState::FullyShutdown => *self = TlsState::FullyShutdown,
+            _ => *self = TlsState::ReadShutdown,
+        }
+    }
+
+    pub(crate) fn shutdown_write(&mut self) {
+        match *self {
+            TlsState::ReadShutdown | TlsState::FullyShutdown => *self = TlsState::FullyShutdown,
+            _ => *self = TlsState::WriteShutdown,
+        }
+    }
+
+    pub(crate) fn writeable(&self) -> bool {
+        match *self {
+            TlsState::WriteShutdown | TlsState::FullyShutdown => true,
+            _ => false,
+        }
+    }
+}
 
 /// A wrapper around a `rustls::ClientConfig`, providing an async `connect` method.
 #[derive(Clone)]
 pub struct TlsConnector {
     inner: Arc<ClientConfig>,
     #[cfg(feature = "early-data")]
-    early_data: bool
+    early_data: bool,
 }
 
 /// A wrapper around a `rustls::ServerConfig`, providing an async `accept` method.
 #[derive(Clone)]
 pub struct TlsAcceptor {
-    inner: Arc<ServerConfig>
+    inner: Arc<ServerConfig>,
 }
 
 impl From<Arc<ClientConfig>> for TlsConnector {
@@ -43,7 +72,7 @@ impl From<Arc<ClientConfig>> for TlsConnector {
         TlsConnector {
             inner,
             #[cfg(feature = "early-data")]
-            early_data: false
+            early_data: false,
         }
     }
 }
@@ -66,40 +95,45 @@ impl TlsConnector {
     }
 
     pub fn connect<IO>(&self, domain: DNSNameRef, stream: IO) -> Connect<IO>
-        where IO: AsyncRead + AsyncWrite
+    where
+        IO: AsyncRead + AsyncWrite,
     {
         self.connect_with(domain, stream, |_| ())
     }
 
     #[inline]
-    pub fn connect_with<IO, F>(&self, domain: DNSNameRef, stream: IO, f: F)
-        -> Connect<IO>
+    pub fn connect_with<IO, F>(&self, domain: DNSNameRef, stream: IO, f: F) -> Connect<IO>
     where
         IO: AsyncRead + AsyncWrite,
-        F: FnOnce(&mut ClientSession)
+        F: FnOnce(&mut ClientSession),
     {
         let mut session = ClientSession::new(&self.inner, domain);
         f(&mut session);
 
-        #[cfg(not(feature = "early-data"))] {
+        #[cfg(not(feature = "early-data"))]
+        {
             Connect(client::MidHandshake::Handshaking(client::TlsStream {
-                session, io: stream,
-                state: client::TlsState::Stream,
+                session,
+                io: stream,
+                state: TlsState::Stream,
             }))
         }
 
-        #[cfg(feature = "early-data")] {
+        #[cfg(feature = "early-data")]
+        {
             Connect(if self.early_data {
                 client::MidHandshake::EarlyData(client::TlsStream {
-                    session, io: stream,
-                    state: client::TlsState::EarlyData,
-                    early_data: (0, Vec::new())
+                    session,
+                    io: stream,
+                    state: TlsState::EarlyData,
+                    early_data: (0, Vec::new()),
                 })
             } else {
                 client::MidHandshake::Handshaking(client::TlsStream {
-                    session, io: stream,
-                    state: client::TlsState::Stream,
-                    early_data: (0, Vec::new())
+                    session,
+                    io: stream,
+                    state: TlsState::Stream,
+                    early_data: (0, Vec::new()),
                 })
             })
         }
@@ -108,28 +142,28 @@ impl TlsConnector {
 
 impl TlsAcceptor {
     pub fn accept<IO>(&self, stream: IO) -> Accept<IO>
-        where IO: AsyncRead + AsyncWrite,
+    where
+        IO: AsyncRead + AsyncWrite,
     {
         self.accept_with(stream, |_| ())
     }
 
     #[inline]
-    pub fn accept_with<IO, F>(&self, stream: IO, f: F)
-        -> Accept<IO>
+    pub fn accept_with<IO, F>(&self, stream: IO, f: F) -> Accept<IO>
     where
         IO: AsyncRead + AsyncWrite,
-        F: FnOnce(&mut ServerSession)
+        F: FnOnce(&mut ServerSession),
     {
         let mut session = ServerSession::new(&self.inner);
         f(&mut session);
 
         Accept(server::MidHandshake::Handshaking(server::TlsStream {
-            session, io: stream,
-            state: server::TlsState::Stream,
+            session,
+            io: stream,
+            state: TlsState::Stream,
         }))
     }
 }
-
 
 /// Future returned from `ClientConfigExt::connect_async` which will resolve
 /// once the connection handshake has finished.
@@ -138,7 +172,6 @@ pub struct Connect<IO>(client::MidHandshake<IO>);
 /// Future returned from `ServerConfigExt::accept_async` which will resolve
 /// once the accept handshake has finished.
 pub struct Accept<IO>(server::MidHandshake<IO>);
-
 
 impl<IO: AsyncRead + AsyncWrite> Future for Connect<IO> {
     type Item = client::TlsStream<IO>;
