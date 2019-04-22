@@ -47,8 +47,8 @@ impl TlsState {
 
     pub(crate) fn writeable(&self) -> bool {
         match *self {
-            TlsState::WriteShutdown | TlsState::FullyShutdown => true,
-            _ => false,
+            TlsState::WriteShutdown | TlsState::FullyShutdown => false,
+            _ => true,
         }
     }
 }
