@@ -121,12 +121,9 @@ where
     IO: AsyncRead + AsyncWrite,
 {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
-        match self.state {
-            s if !s.writeable() => (),
-            _ => {
-                self.session.send_close_notify();
-                self.state.shutdown_write();
-            }
+        if self.state.writeable() {
+            self.session.send_close_notify();
+            self.state.shutdown_write();
         }
 
         let mut stream = Stream::new(&mut self.io, &mut self.session);
