@@ -1,26 +1,18 @@
 use super::*;
 use rustls::Session;
 
-
 /// A wrapper around an underlying raw stream which implements the TLS or SSL
 /// protocol.
 #[derive(Debug)]
 pub struct TlsStream<IO> {
     pub(crate) io: IO,
     pub(crate) session: ServerSession,
-    pub(crate) state: TlsState
-}
-
-#[derive(Debug)]
-pub(crate) enum TlsState {
-    Stream,
-    Eof,
-    Shutdown
+    pub(crate) state: TlsState,
 }
 
 pub(crate) enum MidHandshake<IO> {
     Handshaking(TlsStream<IO>),
-    End
+    End,
 }
 
 impl<IO> TlsStream<IO> {
@@ -41,7 +33,8 @@ impl<IO> TlsStream<IO> {
 }
 
 impl<IO> Future for MidHandshake<IO>
-where IO: AsyncRead + AsyncWrite,
+where
+    IO: AsyncRead + AsyncWrite,
 {
     type Item = TlsStream<IO>;
     type Error = io::Error;
@@ -63,38 +56,45 @@ where IO: AsyncRead + AsyncWrite,
 
         match mem::replace(self, MidHandshake::End) {
             MidHandshake::Handshaking(stream) => Ok(Async::Ready(stream)),
-            MidHandshake::End => panic!()
+            MidHandshake::End => panic!(),
         }
     }
 }
 
 impl<IO> io::Read for TlsStream<IO>
-where IO: AsyncRead + AsyncWrite
+where
+    IO: AsyncRead + AsyncWrite,
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let mut stream = Stream::new(&mut self.io, &mut self.session);
 
         match self.state {
-            TlsState::Stream => match stream.read(buf) {
+            TlsState::Stream | TlsState::WriteShutdown => match stream.read(buf) {
                 Ok(0) => {
-                    self.state = TlsState::Eof;
+                    self.state.shutdown_read();
                     Ok(0)
-                },
+                }
                 Ok(n) => Ok(n),
                 Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => {
-                    self.state = TlsState::Shutdown;
-                    stream.session.send_close_notify();
+                    self.state.shutdown_read();
+                    if self.state.writeable() {
+                        stream.session.send_close_notify();
+                        self.state.shutdown_write();
+                    }
                     Ok(0)
-                },
-                Err(e) => Err(e)
+                }
+                Err(e) => Err(e),
             },
-            TlsState::Eof | TlsState::Shutdown => Ok(0)
+            TlsState::ReadShutdown | TlsState::FullyShutdown => Ok(0),
+            #[cfg(feature = "early-data")]
+            s => unreachable!("server TLS can not hit this state: {:?}", s),
         }
     }
 }
 
 impl<IO> io::Write for TlsStream<IO>
-where IO: AsyncRead + AsyncWrite
+where
+    IO: AsyncRead + AsyncWrite,
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut stream = Stream::new(&mut self.io, &mut self.session);
@@ -108,7 +108,8 @@ where IO: AsyncRead + AsyncWrite
 }
 
 impl<IO> AsyncRead for TlsStream<IO>
-where IO: AsyncRead + AsyncWrite
+where
+    IO: AsyncRead + AsyncWrite,
 {
     unsafe fn prepare_uninitialized_buffer(&self, _: &mut [u8]) -> bool {
         false
@@ -116,15 +117,13 @@ where IO: AsyncRead + AsyncWrite
 }
 
 impl<IO> AsyncWrite for TlsStream<IO>
-where IO: AsyncRead + AsyncWrite,
+where
+    IO: AsyncRead + AsyncWrite,
 {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
-        match self.state {
-            TlsState::Shutdown => (),
-            _ => {
-                self.session.send_close_notify();
-                self.state = TlsState::Shutdown;
-            }
+        if self.state.writeable() {
+            self.session.send_close_notify();
+            self.state.shutdown_write();
         }
 
         let mut stream = Stream::new(&mut self.io, &mut self.session);
