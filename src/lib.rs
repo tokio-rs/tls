@@ -1,17 +1,10 @@
 //! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
 
-pub extern crate rustls;
-pub extern crate webpki;
-
-extern crate bytes;
-extern crate futures;
-extern crate iovec;
-extern crate tokio_io;
-
-pub mod client;
+// pub mod client;
 mod common;
-pub mod server;
+// pub mod server;
 
+/*
 use common::Stream;
 use futures::{Async, Future, Poll};
 use rustls::{ClientConfig, ClientSession, ServerConfig, ServerSession};
@@ -194,3 +187,4 @@ impl<IO: AsyncRead + AsyncWrite> Future for Accept<IO> {
 #[cfg(feature = "early-data")]
 #[cfg(test)]
 mod test_0rtt;
+*/
