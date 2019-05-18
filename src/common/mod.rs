@@ -7,7 +7,7 @@ use std::io::{ self, Read };
 use rustls::Session;
 use rustls::WriteV;
 use futures::task::Context;
-use futures::io::{ AsyncRead, AsyncWrite, IoVec };
+use futures::io::{ AsyncRead, AsyncWrite, IoSlice };
 use smallvec::SmallVec;
 
 
@@ -159,13 +159,10 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> WriteTls<IO, S> for Str
             fn writev(&mut self, vbytes: &[&[u8]]) -> io::Result<usize> {
                 let vbytes = vbytes
                     .into_iter()
-                    .try_fold(SmallVec::<[&'_ IoVec; 16]>::new(), |mut sum, next| {
-                        sum.push(IoVec::from_bytes(next)?);
-                        Some(sum)
-                    })
-                    .unwrap_or_default();
+                    .map(|v| IoSlice::new(v))
+                    .collect::<SmallVec<[IoSlice<'_>; 64]>>();
 
-                match Pin::new(&mut self.io).poll_vectored_write(self.cx, &vbytes) {
+                match Pin::new(&mut self.io).poll_write_vectored(self.cx, &vbytes) {
                     Poll::Ready(result) => result,
                     Poll::Pending => Err(io::ErrorKind::WouldBlock.into())
                 }

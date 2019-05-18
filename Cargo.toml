@@ -17,9 +17,7 @@ appveyor = { repository = "quininer/tokio-rustls" }
 
 [dependencies]
 smallvec = "*"
-futures = { package = "futures-preview", version = "0.3.0-alpha.15" }
-bytes = "0.4"
-iovec = "0.1"
+futures = { package = "futures-preview", version = "0.3.0-alpha.16" }
 rustls = "0.15"
 webpki = "0.19"
 
