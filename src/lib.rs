@@ -1,16 +1,27 @@
 //! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
 
-// pub mod client;
+macro_rules! try_ready {
+    ( $e:expr ) => {
+        match $e {
+            Poll::Ready(Ok(output)) => output,
+            Poll::Ready(Err(err)) => return Poll::Ready(Err(err.into())),
+            Poll::Pending => return Poll::Pending
+        }
+    }
+}
+
+pub mod client;
 mod common;
 // pub mod server;
 
-/*
 use common::Stream;
-use futures::{Async, Future, Poll};
+use std::pin::Pin;
+use std::task::{ Poll, Context };
+use std::future::Future;
+use futures::io::{ AsyncRead, AsyncWrite, Initializer };
 use rustls::{ClientConfig, ClientSession, ServerConfig, ServerSession};
 use std::sync::Arc;
 use std::{io, mem};
-use tokio_io::{try_nb, AsyncRead, AsyncWrite};
 use webpki::DNSNameRef;
 
 #[derive(Debug, Copy, Clone)]
@@ -54,6 +65,7 @@ pub struct TlsConnector {
     early_data: bool,
 }
 
+/*
 /// A wrapper around a `rustls::ServerConfig`, providing an async `accept` method.
 #[derive(Clone)]
 pub struct TlsAcceptor {

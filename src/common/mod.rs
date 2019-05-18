@@ -14,6 +14,7 @@ use smallvec::SmallVec;
 pub struct Stream<'a, IO, S> {
     pub io: &'a mut IO,
     pub session: &'a mut S,
+    pub eof: bool
 }
 
 pub trait WriteTls<IO: AsyncWrite, S: Session> {
@@ -29,7 +30,18 @@ enum Focus {
 
 impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
     pub fn new(io: &'a mut IO, session: &'a mut S) -> Self {
-        Stream { io, session }
+        Stream {
+            io,
+            session,
+            // The state so far is only used to detect EOF, so either Stream
+            // or EarlyData state should both be all right.
+            eof: false,
+        }
+    }
+
+    pub fn set_eof(mut self, eof: bool) -> Self {
+        self.eof = eof;
+        self
     }
 
     pub fn complete_io(&mut self, cx: &mut Context) -> Poll<io::Result<(usize, usize)>> {
@@ -82,7 +94,6 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
     fn complete_inner_io(&mut self, cx: &mut Context, focus: Focus) -> Poll<io::Result<(usize, usize)>> {
         let mut wrlen = 0;
         let mut rdlen = 0;
-        let mut eof = false;
 
         loop {
             let mut write_would_block = false;
@@ -99,9 +110,9 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
                 }
             }
 
-            if !eof && self.session.wants_read() {
+            if !self.eof && self.session.wants_read() {
                 match self.complete_read_io(cx) {
-                    Poll::Ready(Ok(0)) => eof = true,
+                    Poll::Ready(Ok(0)) => self.eof = true,
                     Poll::Ready(Ok(n)) => rdlen += n,
                     Poll::Pending => read_would_block = true,
                     Poll::Ready(Err(err)) => return Poll::Ready(Err(err))
@@ -114,7 +125,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
                 Focus::Writable => write_would_block,
             };
 
-            match (eof, self.session.is_handshaking(), would_block) {
+            match (self.eof, self.session.is_handshaking(), would_block) {
                 (true, true, _) => return Poll::Pending,
                 (_, false, true) => {
                     let would_block = match focus {
@@ -167,7 +178,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> WriteTls<IO, S> for Str
 }
 
 impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
-    fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    pub fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         while self.session.wants_read() {
             match self.complete_inner_io(cx, Focus::Readable) {
                 Poll::Ready(Ok((0, _))) => break,
@@ -181,7 +192,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
         Poll::Ready(self.session.read(buf))
     }
 
-    fn poll_write(&mut self, cx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
+    pub fn poll_write(&mut self, cx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
         let len = self.session.write(buf)?;
         while self.session.wants_write() {
             match self.complete_inner_io(cx, Focus::Writable) {
@@ -204,7 +215,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
         }
     }
 
-    fn poll_flush(&mut self, cx: &mut Context) -> Poll<io::Result<()>> {
+    pub fn poll_flush(&mut self, cx: &mut Context) -> Poll<io::Result<()>> {
         self.session.flush()?;
         while self.session.wants_write() {
             match self.complete_inner_io(cx, Focus::Writable) {
@@ -213,7 +224,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
                 Poll::Ready(Err(err)) => return Poll::Ready(Err(err))
             }
         }
-        Poll::Ready(Ok(()))
+        Pin::new(&mut self.io).poll_flush(cx)
     }
 }
 

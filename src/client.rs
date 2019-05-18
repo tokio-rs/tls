@@ -40,160 +40,154 @@ impl<IO> TlsStream<IO> {
 
 impl<IO> Future for MidHandshake<IO>
 where
-    IO: AsyncRead + AsyncWrite,
+    IO: AsyncRead + AsyncWrite + Unpin,
 {
-    type Item = TlsStream<IO>;
-    type Error = io::Error;
+    type Output = io::Result<TlsStream<IO>>;
 
     #[inline]
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let MidHandshake::Handshaking(stream) = self {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        if let MidHandshake::Handshaking(stream) = &mut *self {
             let (io, session) = stream.get_mut();
             let mut stream = Stream::new(io, session);
 
             if stream.session.is_handshaking() {
-                try_nb!(stream.complete_io());
+                try_ready!(stream.complete_io(cx));
             }
 
             if stream.session.wants_write() {
-                try_nb!(stream.complete_io());
+                try_ready!(stream.complete_io(cx));
             }
         }
 
-        match mem::replace(self, MidHandshake::End) {
-            MidHandshake::Handshaking(stream) => Ok(Async::Ready(stream)),
+        match mem::replace(&mut *self, MidHandshake::End) {
+            MidHandshake::Handshaking(stream) => Poll::Ready(Ok(stream)),
             #[cfg(feature = "early-data")]
-            MidHandshake::EarlyData(stream) => Ok(Async::Ready(stream)),
+            MidHandshake::EarlyData(stream) => Poll::Ready(Ok(stream)),
             MidHandshake::End => panic!(),
         }
     }
 }
 
-impl<IO> io::Read for TlsStream<IO>
+impl<IO> AsyncRead for TlsStream<IO>
 where
-    IO: AsyncRead + AsyncWrite,
+    IO: AsyncRead + AsyncWrite + Unpin,
 {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match self.state {
-            #[cfg(feature = "early-data")]
-            TlsState::EarlyData => {
-                {
-                    let mut stream = Stream::new(&mut self.io, &mut self.session);
-                    let (pos, data) = &mut self.early_data;
-
-                    // complete handshake
-                    if stream.session.is_handshaking() {
-                        stream.complete_io()?;
-                    }
-
-                    // write early data (fallback)
-                    if !stream.session.is_early_data_accepted() {
-                        while *pos < data.len() {
-                            let len = stream.write(&data[*pos..])?;
-                            *pos += len;
-                        }
-                    }
-
-                    // end
-                    self.state = TlsState::Stream;
-                    data.clear();
-                }
-
-                self.read(buf)
-            }
-            TlsState::Stream | TlsState::WriteShutdown => {
-                let mut stream = Stream::new(&mut self.io, &mut self.session);
-
-                match stream.read(buf) {
-                    Ok(0) => {
-                        self.state.shutdown_read();
-                        Ok(0)
-                    }
-                    Ok(n) => Ok(n),
-                    Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => {
-                        self.state.shutdown_read();
-                        if self.state.writeable() {
-                            stream.session.send_close_notify();
-                            self.state.shutdown_write();
-                        }
-                        Ok(0)
-                    }
-                    Err(e) => Err(e),
-                }
-            }
-            TlsState::ReadShutdown | TlsState::FullyShutdown => Ok(0),
-        }
+    unsafe fn initializer(&self) -> Initializer {
+        // TODO
+        Initializer::nop()
     }
-}
 
-impl<IO> io::Write for TlsStream<IO>
-where
-    IO: AsyncRead + AsyncWrite,
-{
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let mut stream = Stream::new(&mut self.io, &mut self.session);
-
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         match self.state {
             #[cfg(feature = "early-data")]
             TlsState::EarlyData => {
-                let (pos, data) = &mut self.early_data;
+                let this = self.get_mut();
 
-                // write early data
-                if let Some(mut early_data) = stream.session.early_data() {
-                    let len = early_data.write(buf)?;
-                    data.extend_from_slice(&buf[..len]);
-                    return Ok(len);
-                }
+                let mut stream = Stream::new(&mut this.io, &mut this.session);
+                let (pos, data) = &mut this.early_data;
 
                 // complete handshake
                 if stream.session.is_handshaking() {
-                    stream.complete_io()?;
+                    try_ready!(stream.complete_io(cx));
                 }
 
                 // write early data (fallback)
                 if !stream.session.is_early_data_accepted() {
                     while *pos < data.len() {
-                        let len = stream.write(&data[*pos..])?;
+                        let len = try_ready!(stream.poll_write(cx, &data[*pos..]));
                         *pos += len;
                     }
                 }
 
                 // end
-                self.state = TlsState::Stream;
+                this.state = TlsState::Stream;
                 data.clear();
-                stream.write(buf)
+
+                Pin::new(this).poll_read(cx, buf)
             }
-            _ => stream.write(buf),
+            TlsState::Stream | TlsState::WriteShutdown => {
+                let this = self.get_mut();
+                let mut stream = Stream::new(&mut this.io, &mut this.session);
+
+                match stream.poll_read(cx, buf) {
+                    Poll::Ready(Ok(0)) => {
+                        this.state.shutdown_read();
+                        Poll::Ready(Ok(0))
+                    }
+                    Poll::Ready(Ok(n)) => Poll::Ready(Ok(n)),
+                    Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::ConnectionAborted => {
+                        this.state.shutdown_read();
+                        if this.state.writeable() {
+                            stream.session.send_close_notify();
+                            this.state.shutdown_write();
+                        }
+                        Poll::Ready(Ok(0))
+                    }
+                    Poll::Ready(Err(err)) => Poll::Ready(Err(err)),
+                    Poll::Pending => Poll::Pending
+                }
+            }
+            TlsState::ReadShutdown | TlsState::FullyShutdown => Poll::Ready(Ok(0)),
         }
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Stream::new(&mut self.io, &mut self.session).flush()?;
-        self.io.flush()
-    }
-}
-
-impl<IO> AsyncRead for TlsStream<IO>
-where
-    IO: AsyncRead + AsyncWrite,
-{
-    unsafe fn prepare_uninitialized_buffer(&self, _: &mut [u8]) -> bool {
-        false
     }
 }
 
 impl<IO> AsyncWrite for TlsStream<IO>
 where
-    IO: AsyncRead + AsyncWrite,
+    IO: AsyncRead + AsyncWrite + Unpin,
 {
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
+        let this = self.get_mut();
+        let mut stream = Stream::new(&mut this.io, &mut this.session);
+
+        match this.state {
+            #[cfg(feature = "early-data")]
+            TlsState::EarlyData => {
+                let (pos, data) = &mut this.early_data;
+
+                // write early data
+                if let Some(mut early_data) = stream.session.early_data() {
+                    let len = early_data.write(buf)?; // TODO check pending
+                    data.extend_from_slice(&buf[..len]);
+                    return Poll::Ready(Ok(len));
+                }
+
+                // complete handshake
+                if stream.session.is_handshaking() {
+                    try_ready!(stream.complete_io(cx));
+                }
+
+                // write early data (fallback)
+                if !stream.session.is_early_data_accepted() {
+                    while *pos < data.len() {
+                        let len = try_ready!(stream.poll_write(cx, &data[*pos..]));
+                        *pos += len;
+                    }
+                }
+
+                // end
+                this.state = TlsState::Stream;
+                data.clear();
+                stream.poll_write(cx, buf)
+            }
+            _ => stream.poll_write(cx, buf),
+        }
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+        Stream::new(&mut this.io, &mut this.session).poll_flush(cx)
+    }
+
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
         if self.state.writeable() {
             self.session.send_close_notify();
             self.state.shutdown_write();
         }
 
-        let mut stream = Stream::new(&mut self.io, &mut self.session);
-        try_nb!(stream.flush());
-        stream.io.shutdown()
+        let this = self.get_mut();
+        let mut stream = Stream::new(&mut this.io, &mut this.session);
+        try_ready!(stream.poll_flush(cx));
+        Pin::new(&mut this.io).poll_close(cx)
     }
 }
