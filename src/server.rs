@@ -34,100 +34,102 @@ impl<IO> TlsStream<IO> {
 
 impl<IO> Future for MidHandshake<IO>
 where
-    IO: AsyncRead + AsyncWrite,
+    IO: AsyncRead + AsyncWrite + Unpin,
 {
-    type Item = TlsStream<IO>;
-    type Error = io::Error;
+    type Output = io::Result<TlsStream<IO>>;
 
     #[inline]
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let MidHandshake::Handshaking(stream) = self {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        if let MidHandshake::Handshaking(stream) = this {
+            let eof = !stream.state.readable();
             let (io, session) = stream.get_mut();
-            let mut stream = Stream::new(io, session);
+            let mut stream = Stream::new(io, session).set_eof(eof);
 
             if stream.session.is_handshaking() {
-                try_nb!(stream.complete_io());
+                try_ready!(stream.complete_io(cx));
             }
 
             if stream.session.wants_write() {
-                try_nb!(stream.complete_io());
+                try_ready!(stream.complete_io(cx));
             }
         }
 
-        match mem::replace(self, MidHandshake::End) {
-            MidHandshake::Handshaking(stream) => Ok(Async::Ready(stream)),
+        match mem::replace(this, MidHandshake::End) {
+            MidHandshake::Handshaking(stream) => Poll::Ready(Ok(stream)),
             MidHandshake::End => panic!(),
         }
     }
 }
 
-impl<IO> io::Read for TlsStream<IO>
+impl<IO> AsyncRead for TlsStream<IO>
 where
-    IO: AsyncRead + AsyncWrite,
+    IO: AsyncRead + AsyncWrite + Unpin,
 {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let mut stream = Stream::new(&mut self.io, &mut self.session);
+    unsafe fn initializer(&self) -> Initializer {
+        // TODO
+        Initializer::nop()
+    }
 
-        match self.state {
-            TlsState::Stream | TlsState::WriteShutdown => match stream.read(buf) {
-                Ok(0) => {
-                    self.state.shutdown_read();
-                    Ok(0)
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        let this = self.get_mut();
+        let mut stream = Stream::new(&mut this.io, &mut this.session)
+            .set_eof(!this.state.readable());
+
+        match this.state {
+            TlsState::Stream | TlsState::WriteShutdown => match stream.poll_read(cx, buf) {
+                Poll::Ready(Ok(0)) => {
+                    this.state.shutdown_read();
+                    Poll::Ready(Ok(0))
                 }
-                Ok(n) => Ok(n),
-                Err(ref e) if e.kind() == io::ErrorKind::ConnectionAborted => {
-                    self.state.shutdown_read();
-                    if self.state.writeable() {
+                Poll::Ready(Ok(n)) => Poll::Ready(Ok(n)),
+                Poll::Ready(Err(ref err)) if err.kind() == io::ErrorKind::ConnectionAborted => {
+                    this.state.shutdown_read();
+                    if this.state.writeable() {
                         stream.session.send_close_notify();
-                        self.state.shutdown_write();
+                        this.state.shutdown_write();
                     }
-                    Ok(0)
+                    Poll::Ready(Ok(0))
                 }
-                Err(e) => Err(e),
+                Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
+                Poll::Pending => Poll::Pending
             },
-            TlsState::ReadShutdown | TlsState::FullyShutdown => Ok(0),
+            TlsState::ReadShutdown | TlsState::FullyShutdown => Poll::Ready(Ok(0)),
             #[cfg(feature = "early-data")]
             s => unreachable!("server TLS can not hit this state: {:?}", s),
         }
     }
 }
 
-impl<IO> io::Write for TlsStream<IO>
-where
-    IO: AsyncRead + AsyncWrite,
-{
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let mut stream = Stream::new(&mut self.io, &mut self.session);
-        stream.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Stream::new(&mut self.io, &mut self.session).flush()?;
-        self.io.flush()
-    }
-}
-
-impl<IO> AsyncRead for TlsStream<IO>
-where
-    IO: AsyncRead + AsyncWrite,
-{
-    unsafe fn prepare_uninitialized_buffer(&self, _: &mut [u8]) -> bool {
-        false
-    }
-}
-
 impl<IO> AsyncWrite for TlsStream<IO>
 where
-    IO: AsyncRead + AsyncWrite,
+    IO: AsyncRead + AsyncWrite + Unpin,
 {
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
+        let this = self.get_mut();
+        Stream::new(&mut this.io, &mut this.session)
+            .set_eof(!this.state.readable())
+            .poll_write(cx, buf)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+        Stream::new(&mut this.io, &mut this.session)
+            .set_eof(!this.state.readable())
+            .poll_flush(cx)
+    }
+
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
         if self.state.writeable() {
             self.session.send_close_notify();
             self.state.shutdown_write();
         }
 
-        let mut stream = Stream::new(&mut self.io, &mut self.session);
-        try_nb!(stream.complete_io());
-        stream.io.shutdown()
+        let this = self.get_mut();
+        let mut stream = Stream::new(&mut this.io, &mut this.session)
+            .set_eof(!this.state.readable());
+        try_ready!(stream.complete_io(cx));
+        Pin::new(&mut this.io).poll_close(cx)
     }
 }

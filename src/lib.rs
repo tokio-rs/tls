@@ -12,7 +12,7 @@ macro_rules! try_ready {
 
 pub mod client;
 mod common;
-// pub mod server;
+pub mod server;
 
 use common::Stream;
 use std::pin::Pin;
@@ -25,7 +25,7 @@ use std::{io, mem};
 use webpki::DNSNameRef;
 
 #[derive(Debug, Copy, Clone)]
-pub enum TlsState {
+enum TlsState {
     #[cfg(feature = "early-data")]
     EarlyData,
     Stream,
@@ -35,23 +35,30 @@ pub enum TlsState {
 }
 
 impl TlsState {
-    pub(crate) fn shutdown_read(&mut self) {
+    fn shutdown_read(&mut self) {
         match *self {
             TlsState::WriteShutdown | TlsState::FullyShutdown => *self = TlsState::FullyShutdown,
             _ => *self = TlsState::ReadShutdown,
         }
     }
 
-    pub(crate) fn shutdown_write(&mut self) {
+    fn shutdown_write(&mut self) {
         match *self {
             TlsState::ReadShutdown | TlsState::FullyShutdown => *self = TlsState::FullyShutdown,
             _ => *self = TlsState::WriteShutdown,
         }
     }
 
-    pub(crate) fn writeable(&self) -> bool {
+    fn writeable(&self) -> bool {
         match *self {
             TlsState::WriteShutdown | TlsState::FullyShutdown => false,
+            _ => true,
+        }
+    }
+
+    fn readable(self) -> bool {
+        match self {
+            TlsState::ReadShutdown | TlsState::FullyShutdown => false,
             _ => true,
         }
     }
@@ -65,7 +72,6 @@ pub struct TlsConnector {
     early_data: bool,
 }
 
-/*
 /// A wrapper around a `rustls::ServerConfig`, providing an async `accept` method.
 #[derive(Clone)]
 pub struct TlsAcceptor {
@@ -170,32 +176,31 @@ impl TlsAcceptor {
     }
 }
 
-/// Future returned from `ClientConfigExt::connect_async` which will resolve
+/// Future returned from `TlsConnector::connect` which will resolve
 /// once the connection handshake has finished.
 pub struct Connect<IO>(client::MidHandshake<IO>);
 
-/// Future returned from `ServerConfigExt::accept_async` which will resolve
+/// Future returned from `TlsAcceptor::accept` which will resolve
 /// once the accept handshake has finished.
 pub struct Accept<IO>(server::MidHandshake<IO>);
 
-impl<IO: AsyncRead + AsyncWrite> Future for Connect<IO> {
-    type Item = client::TlsStream<IO>;
-    type Error = io::Error;
+impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Connect<IO> {
+    type Output = io::Result<client::TlsStream<IO>>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.0.poll()
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        Pin::new(&mut self.0).poll(cx)
     }
 }
 
-impl<IO: AsyncRead + AsyncWrite> Future for Accept<IO> {
-    type Item = server::TlsStream<IO>;
-    type Error = io::Error;
+impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Accept<IO> {
+    type Output = io::Result<server::TlsStream<IO>>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.0.poll()
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        Pin::new(&mut self.0).poll(cx)
     }
 }
 
+/*
 #[cfg(feature = "early-data")]
 #[cfg(test)]
 mod test_0rtt;

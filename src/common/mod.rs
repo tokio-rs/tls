@@ -3,7 +3,7 @@
 use std::pin::Pin;
 use std::task::Poll;
 use std::marker::Unpin;
-use std::io::{ self, Read, Write };
+use std::io::{ self, Read };
 use rustls::Session;
 use rustls::WriteV;
 use futures::task::Context;
