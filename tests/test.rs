@@ -1,3 +1,5 @@
+#![cfg(not(test))]
+
 #[macro_use] extern crate lazy_static;
 extern crate rustls;
 extern crate tokio;

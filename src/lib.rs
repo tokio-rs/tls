@@ -1,5 +1,7 @@
 //! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
 
+#![feature(async_await)]
+
 macro_rules! try_ready {
     ( $e:expr ) => {
         match $e {
@@ -10,19 +12,19 @@ macro_rules! try_ready {
     }
 }
 
-pub mod client;
 mod common;
+pub mod client;
 pub mod server;
 
-use common::Stream;
-use std::pin::Pin;
-use std::task::{ Poll, Context };
-use std::future::Future;
-use futures::io::{ AsyncRead, AsyncWrite, Initializer };
-use rustls::{ClientConfig, ClientSession, ServerConfig, ServerSession};
+use std::{ io, mem };
 use std::sync::Arc;
-use std::{io, mem};
+use std::pin::Pin;
+use std::future::Future;
+use std::task::{ Poll, Context };
+use futures::io::{ AsyncRead, AsyncWrite, Initializer };
+use rustls::{ ClientConfig, ClientSession, ServerConfig, ServerSession };
 use webpki::DNSNameRef;
+use common::Stream;
 
 #[derive(Debug, Copy, Clone)]
 enum TlsState {
@@ -200,8 +202,6 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Accept<IO> {
     }
 }
 
-/*
 #[cfg(feature = "early-data")]
 #[cfg(test)]
 mod test_0rtt;
-*/

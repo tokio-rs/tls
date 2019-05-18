@@ -1,6 +1,5 @@
 use super::*;
 use rustls::Session;
-use std::io::Write;
 
 /// A wrapper around an underlying raw stream which implements the TLS or SSL
 /// protocol.
@@ -149,6 +148,8 @@ where
         match this.state {
             #[cfg(feature = "early-data")]
             TlsState::EarlyData => {
+                use std::io::Write;
+
                 let (pos, data) = &mut this.early_data;
 
                 // write early data

@@ -225,5 +225,5 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
     }
 }
 
-#[cfg(test)]
-mod test_stream;
+// #[cfg(test)]
+// mod test_stream;
