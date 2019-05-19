@@ -1,5 +1,3 @@
-// mod vecbuf;
-
 use std::pin::Pin;
 use std::task::Poll;
 use std::marker::Unpin;

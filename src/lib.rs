@@ -109,7 +109,7 @@ impl TlsConnector {
 
     pub fn connect<IO>(&self, domain: DNSNameRef, stream: IO) -> Connect<IO>
     where
-        IO: AsyncRead + AsyncWrite,
+        IO: AsyncRead + AsyncWrite + Unpin,
     {
         self.connect_with(domain, stream, |_| ())
     }
@@ -117,7 +117,7 @@ impl TlsConnector {
     #[inline]
     pub fn connect_with<IO, F>(&self, domain: DNSNameRef, stream: IO, f: F) -> Connect<IO>
     where
-        IO: AsyncRead + AsyncWrite,
+        IO: AsyncRead + AsyncWrite + Unpin,
         F: FnOnce(&mut ClientSession),
     {
         let mut session = ClientSession::new(&self.inner, domain);
@@ -156,7 +156,7 @@ impl TlsConnector {
 impl TlsAcceptor {
     pub fn accept<IO>(&self, stream: IO) -> Accept<IO>
     where
-        IO: AsyncRead + AsyncWrite,
+        IO: AsyncRead + AsyncWrite + Unpin,
     {
         self.accept_with(stream, |_| ())
     }
@@ -164,7 +164,7 @@ impl TlsAcceptor {
     #[inline]
     pub fn accept_with<IO, F>(&self, stream: IO, f: F) -> Accept<IO>
     where
-        IO: AsyncRead + AsyncWrite,
+        IO: AsyncRead + AsyncWrite + Unpin,
         F: FnOnce(&mut ServerSession),
     {
         let mut session = ServerSession::new(&self.inner);
@@ -189,7 +189,8 @@ pub struct Accept<IO>(server::MidHandshake<IO>);
 impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Connect<IO> {
     type Output = io::Result<client::TlsStream<IO>>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    #[inline]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.0).poll(cx)
     }
 }
@@ -197,7 +198,8 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Connect<IO> {
 impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Accept<IO> {
     type Output = io::Result<server::TlsStream<IO>>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    #[inline]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.0).poll(cx)
     }
 }
