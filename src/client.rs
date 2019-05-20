@@ -97,7 +97,7 @@ where
                 // write early data (fallback)
                 if !stream.session.is_early_data_accepted() {
                     while *pos < data.len() {
-                        let len = try_ready!(stream.poll_write(cx, &data[*pos..]));
+                        let len = try_ready!(stream.pin().poll_write(cx, &data[*pos..]));
                         *pos += len;
                     }
                 }
@@ -113,7 +113,7 @@ where
                 let mut stream = Stream::new(&mut this.io, &mut this.session)
                     .set_eof(!this.state.readable());
 
-                match stream.poll_read(cx, buf) {
+                match stream.pin().poll_read(cx, buf) {
                     Poll::Ready(Ok(0)) => {
                         this.state.shutdown_read();
                         Poll::Ready(Ok(0))
@@ -167,7 +167,7 @@ where
                 // write early data (fallback)
                 if !stream.session.is_early_data_accepted() {
                     while *pos < data.len() {
-                        let len = try_ready!(stream.poll_write(cx, &data[*pos..]));
+                        let len = try_ready!(stream.pin().poll_write(cx, &data[*pos..]));
                         *pos += len;
                     }
                 }
@@ -175,17 +175,17 @@ where
                 // end
                 this.state = TlsState::Stream;
                 data.clear();
-                stream.poll_write(cx, buf)
+                stream.pin().poll_write(cx, buf)
             }
-            _ => stream.poll_write(cx, buf),
+            _ => stream.pin().poll_write(cx, buf),
         }
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
-        Stream::new(&mut this.io, &mut this.session)
-            .set_eof(!this.state.readable())
-            .poll_flush(cx)
+        let mut stream = Stream::new(&mut this.io, &mut this.session)
+            .set_eof(!this.state.readable());
+        stream.pin().poll_flush(cx)
     }
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -197,7 +197,6 @@ where
         let this = self.get_mut();
         let mut stream = Stream::new(&mut this.io, &mut this.session)
             .set_eof(!this.state.readable());
-        try_ready!(stream.poll_flush(cx));
-        Pin::new(&mut this.io).poll_close(cx)
+        stream.pin().poll_close(cx)
     }
 }

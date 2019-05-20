@@ -2,8 +2,7 @@ use std::pin::Pin;
 use std::task::Poll;
 use std::marker::Unpin;
 use std::io::{ self, Read };
-use rustls::Session;
-use rustls::WriteV;
+use rustls::{ Session, WriteV };
 use futures::task::Context;
 use futures::io::{ AsyncRead, AsyncWrite, IoSlice };
 use smallvec::SmallVec;
@@ -40,6 +39,10 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
     pub fn set_eof(mut self, eof: bool) -> Self {
         self.eof = eof;
         self
+    }
+
+    pub fn pin(&mut self) -> Pin<&mut Self> {
+        Pin::new(self)
     }
 
     pub fn complete_io(&mut self, cx: &mut Context) -> Poll<io::Result<(usize, usize)>> {
@@ -124,7 +127,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
             };
 
             match (self.eof, self.session.is_handshaking(), would_block) {
-                (true, true, _) => return Poll::Pending,
+                (true, true, _) => return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into())),
                 (_, false, true) => {
                     let would_block = match focus {
                         Focus::Empty => rdlen == 0 && wrlen == 0,
@@ -172,10 +175,12 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> WriteTls<IO, S> for Str
     }
 }
 
-impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
-    pub fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
-        while self.session.wants_read() {
-            match self.complete_inner_io(cx, Focus::Readable) {
+impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a, IO, S> {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        let this = self.get_mut();
+
+        while this.session.wants_read() {
+            match this.complete_inner_io(cx, Focus::Readable) {
                 Poll::Ready(Ok((0, _))) => break,
                 Poll::Ready(Ok(_)) => (),
                 Poll::Pending => return Poll::Pending,
@@ -184,13 +189,17 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
         }
 
         // FIXME rustls always ready ?
-        Poll::Ready(self.session.read(buf))
+        Poll::Ready(this.session.read(buf))
     }
+}
 
-    pub fn poll_write(&mut self, cx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
-        let len = self.session.write(buf)?;
-        while self.session.wants_write() {
-            match self.complete_inner_io(cx, Focus::Writable) {
+impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'a, IO, S> {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
+        let this = self.get_mut();
+
+        let len = this.session.write(buf)?;
+        while this.session.wants_write() {
+            match this.complete_inner_io(cx, Focus::Writable) {
                 Poll::Ready(Ok(_)) => (),
                 Poll::Pending if len != 0 => break,
                 Poll::Pending => return Poll::Pending,
@@ -202,7 +211,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
             Poll::Ready(Ok(len))
         } else {
             // not write zero
-            match self.session.write(buf) {
+            match this.session.write(buf) {
                 Ok(0) => Poll::Pending,
                 Ok(n) => Poll::Ready(Ok(n)),
                 Err(err) => Poll::Ready(Err(err))
@@ -210,18 +219,33 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
         }
     }
 
-    pub fn poll_flush(&mut self, cx: &mut Context) -> Poll<io::Result<()>> {
-        self.session.flush()?;
-        while self.session.wants_write() {
-            match self.complete_inner_io(cx, Focus::Writable) {
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+
+        this.session.flush()?;
+        while this.session.wants_write() {
+            match this.complete_inner_io(cx, Focus::Writable) {
                 Poll::Ready(Ok(_)) => (),
                 Poll::Pending => return Poll::Pending,
                 Poll::Ready(Err(err)) => return Poll::Ready(Err(err))
             }
         }
-        Pin::new(&mut self.io).poll_flush(cx)
+        Pin::new(&mut this.io).poll_flush(cx)
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+
+        while this.session.wants_write() {
+            match this.complete_inner_io(cx, Focus::Writable) {
+                Poll::Ready(Ok(_)) => (),
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(Err(err)) => return Poll::Ready(Err(err))
+            }
+        }
+        Pin::new(&mut this.io).poll_close(cx)
     }
 }
 
-// #[cfg(test)]
-// mod test_stream;
+#[cfg(test)]
+mod test_stream;
