@@ -26,7 +26,7 @@ lazy_static!{
         let mut config = ServerConfig::new(rustls::NoClientAuth::new());
         config.set_single_cert(cert, keys.pop().unwrap())
             .expect("invalid key or certificate");
-        let config = TlsAcceptor::from(Arc::new(config));
+        let acceptor = TlsAcceptor::from(Arc::new(config));
 
         let (send, recv) = channel();
 
@@ -40,11 +40,10 @@ lazy_static!{
 
                 let mut incoming = listener.incoming();
                 while let Some(stream) = incoming.next().await {
-                    let config = config.clone();
+                    let acceptor = acceptor.clone();
                     pool.spawn(
                         async move {
-                            let stream = stream?;
-                            let stream = config.accept(stream).await?;
+                            let stream = acceptor.accept(stream?).await?;
                             let (mut reader, mut write) = stream.split();
                             reader.copy_into(&mut write).await?;
                             Ok(()) as io::Result<()>

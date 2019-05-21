@@ -16,7 +16,7 @@ travis-ci = { repository = "quininer/tokio-rustls" }
 appveyor = { repository = "quininer/tokio-rustls" }
 
 [dependencies]
-smallvec = "*"
+smallvec = "0.6"
 futures = { package = "futures-preview", version = "0.3.0-alpha.16" }
 rustls = "0.15"
 webpki = "0.19"
@@ -26,6 +26,5 @@ early-data = []
 
 [dev-dependencies]
 romio = "0.3.0-alpha.8"
-tokio = "0.1.6"
 lazy_static = "1"
 webpki-roots = "0.16"

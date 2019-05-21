@@ -127,7 +127,10 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
             };
 
             match (self.eof, self.session.is_handshaking(), would_block) {
-                (true, true, _) => return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into())),
+                (true, true, _) => {
+                    let err = io::Error::new(io::ErrorKind::UnexpectedEof, "tls handshake eof");
+                    return Poll::Ready(Err(err));
+                },
                 (_, false, true) => {
                     let would_block = match focus {
                         Focus::Empty => rdlen == 0 && wrlen == 0,
@@ -224,11 +227,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
 
         this.session.flush()?;
         while this.session.wants_write() {
-            match this.complete_inner_io(cx, Focus::Writable) {
-                Poll::Ready(Ok(_)) => (),
-                Poll::Pending => return Poll::Pending,
-                Poll::Ready(Err(err)) => return Poll::Ready(Err(err))
-            }
+            try_ready!(this.complete_inner_io(cx, Focus::Writable));
         }
         Pin::new(&mut this.io).poll_flush(cx)
     }
@@ -237,11 +236,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
         let this = self.get_mut();
 
         while this.session.wants_write() {
-            match this.complete_inner_io(cx, Focus::Writable) {
-                Poll::Ready(Ok(_)) => (),
-                Poll::Pending => return Poll::Pending,
-                Poll::Ready(Err(err)) => return Poll::Ready(Err(err))
-            }
+            try_ready!(this.complete_inner_io(cx, Focus::Writable));
         }
         Pin::new(&mut this.io).poll_close(cx)
     }

@@ -26,6 +26,9 @@ use rustls::{ ClientConfig, ClientSession, ServerConfig, ServerSession };
 use webpki::DNSNameRef;
 use common::Stream;
 
+pub use rustls;
+pub use webpki;
+
 #[derive(Debug, Copy, Clone)]
 enum TlsState {
     #[cfg(feature = "early-data")]
