@@ -11,6 +11,8 @@ matrix:
       os: osx
     - rust: nightly
       os: osx
+  allow_failures:
+    - rust: stable
 
 script:
     - cargo test

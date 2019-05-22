@@ -53,11 +53,11 @@ where
             let mut stream = Stream::new(io, session).set_eof(eof);
 
             if stream.session.is_handshaking() {
-                try_ready!(stream.complete_io(cx));
+                futures::ready!(stream.complete_io(cx))?;
             }
 
             if stream.session.wants_write() {
-                try_ready!(stream.complete_io(cx));
+                futures::ready!(stream.complete_io(cx))?;
             }
         }
 
@@ -91,13 +91,13 @@ where
 
                 // complete handshake
                 if stream.session.is_handshaking() {
-                    try_ready!(stream.complete_io(cx));
+                    futures::ready!(stream.complete_io(cx))?;
                 }
 
                 // write early data (fallback)
                 if !stream.session.is_early_data_accepted() {
                     while *pos < data.len() {
-                        let len = try_ready!(stream.pin().poll_write(cx, &data[*pos..]));
+                        let len = futures::ready!(stream.pin().poll_write(cx, &data[*pos..]))?;
                         *pos += len;
                     }
                 }
@@ -161,13 +161,13 @@ where
 
                 // complete handshake
                 if stream.session.is_handshaking() {
-                    try_ready!(stream.complete_io(cx));
+                    futures::ready!(stream.complete_io(cx))?;
                 }
 
                 // write early data (fallback)
                 if !stream.session.is_early_data_accepted() {
                     while *pos < data.len() {
-                        let len = try_ready!(stream.pin().poll_write(cx, &data[*pos..]));
+                        let len = futures::ready!(stream.pin().poll_write(cx, &data[*pos..]))?;
                         *pos += len;
                     }
                 }

@@ -2,16 +2,6 @@
 
 #![feature(async_await)]
 
-macro_rules! try_ready {
-    ( $e:expr ) => {
-        match $e {
-            Poll::Ready(Ok(output)) => output,
-            Poll::Ready(Err(err)) => return Poll::Ready(Err(err.into())),
-            Poll::Pending => return Poll::Pending
-        }
-    }
-}
-
 mod common;
 pub mod client;
 pub mod server;

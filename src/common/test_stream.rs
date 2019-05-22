@@ -206,11 +206,11 @@ fn do_handshake(client: &mut ClientSession, server: &mut ServerSession, cx: &mut
     let mut stream = Stream::new(&mut good, client);
 
     if stream.session.is_handshaking() {
-        try_ready!(stream.complete_io(cx));
+        futures::ready!(stream.complete_io(cx))?;
     }
 
     if stream.session.wants_write() {
-        try_ready!(stream.complete_io(cx));
+        futures::ready!(stream.complete_io(cx))?;
     }
 
     Poll::Ready(Ok(()))

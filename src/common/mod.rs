@@ -227,7 +227,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
 
         this.session.flush()?;
         while this.session.wants_write() {
-            try_ready!(this.complete_inner_io(cx, Focus::Writable));
+            futures::ready!(this.complete_inner_io(cx, Focus::Writable))?;
         }
         Pin::new(&mut this.io).poll_flush(cx)
     }
@@ -236,7 +236,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
         let this = self.get_mut();
 
         while this.session.wants_write() {
-            try_ready!(this.complete_inner_io(cx, Focus::Writable));
+            futures::ready!(this.complete_inner_io(cx, Focus::Writable))?;
         }
         Pin::new(&mut this.io).poll_close(cx)
     }
