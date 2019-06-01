@@ -68,7 +68,6 @@ where
     IO: AsyncRead + AsyncWrite + Unpin,
 {
     unsafe fn initializer(&self) -> Initializer {
-        // TODO
         Initializer::nop()
     }
 
@@ -78,7 +77,7 @@ where
             .set_eof(!this.state.readable());
 
         match this.state {
-            TlsState::Stream | TlsState::WriteShutdown => match stream.pin().poll_read(cx, buf) {
+            TlsState::Stream | TlsState::WriteShutdown => match stream.as_mut_pin().poll_read(cx, buf) {
                 Poll::Ready(Ok(0)) => {
                     this.state.shutdown_read();
                     Poll::Ready(Ok(0))
@@ -110,14 +109,14 @@ where
         let this = self.get_mut();
         let mut stream = Stream::new(&mut this.io, &mut this.session)
             .set_eof(!this.state.readable());
-        stream.pin().poll_write(cx, buf)
+        stream.as_mut_pin().poll_write(cx, buf)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
         let mut stream = Stream::new(&mut this.io, &mut this.session)
             .set_eof(!this.state.readable());
-        stream.pin().poll_flush(cx)
+        stream.as_mut_pin().poll_flush(cx)
     }
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -127,7 +126,8 @@ where
         }
 
         let this = self.get_mut();
-        let mut stream = Stream::new(&mut this.io, &mut this.session).set_eof(!this.state.readable());
-        stream.pin().poll_close(cx)
+        let mut stream = Stream::new(&mut this.io, &mut this.session)
+            .set_eof(!this.state.readable());
+        stream.as_mut_pin().poll_close(cx)
     }
 }

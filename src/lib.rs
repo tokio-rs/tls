@@ -1,6 +1,7 @@
 //! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
 
-#![feature(async_await)]
+#![cfg_attr(test, feature(async_await))]
+
 
 mod common;
 pub mod client;

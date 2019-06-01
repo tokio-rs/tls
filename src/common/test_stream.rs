@@ -105,13 +105,13 @@ fn stream_bad() -> io::Result<()> {
 
         let mut bad = Bad(true);
         let mut stream = Stream::new(&mut bad, &mut client);
-        assert_eq!(future::poll_fn(|cx| stream.pin().poll_write(cx, &[0x42; 8])).await?, 8);
-        assert_eq!(future::poll_fn(|cx| stream.pin().poll_write(cx, &[0x42; 8])).await?, 8);
-        let r = future::poll_fn(|cx| stream.pin().poll_write(cx, &[0x00; 1024])).await?; // fill buffer
+        assert_eq!(future::poll_fn(|cx| stream.as_mut_pin().poll_write(cx, &[0x42; 8])).await?, 8);
+        assert_eq!(future::poll_fn(|cx| stream.as_mut_pin().poll_write(cx, &[0x42; 8])).await?, 8);
+        let r = future::poll_fn(|cx| stream.as_mut_pin().poll_write(cx, &[0x00; 1024])).await?; // fill buffer
         assert!(r < 1024);
 
         let mut cx = Context::from_waker(noop_waker_ref());
-        assert!(stream.pin().poll_write(&mut cx, &[0x01]).is_pending());
+        assert!(stream.as_mut_pin().poll_write(&mut cx, &[0x01]).is_pending());
 
         Ok(()) as io::Result<()>
     };

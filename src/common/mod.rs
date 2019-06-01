@@ -14,7 +14,7 @@ pub struct Stream<'a, IO, S> {
     pub eof: bool
 }
 
-pub trait WriteTls<IO: AsyncWrite, S: Session> {
+trait WriteTls<IO: AsyncWrite, S: Session> {
     fn write_tls(&mut self, cx: &mut Context) -> io::Result<usize>;
 }
 
@@ -41,7 +41,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
         self
     }
 
-    pub fn pin(&mut self) -> Pin<&mut Self> {
+    pub fn as_mut_pin(&mut self) -> Pin<&mut Self> {
         Pin::new(self)
     }
 
@@ -191,8 +191,10 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a
             }
         }
 
-        // FIXME rustls always ready ?
-        Poll::Ready(this.session.read(buf))
+        match this.session.read(buf) {
+            Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Pending,
+            result => Poll::Ready(result)
+        }
     }
 }
 
@@ -200,7 +202,12 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
     fn poll_write(self: Pin<&mut Self>, cx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
         let this = self.get_mut();
 
-        let len = this.session.write(buf)?;
+        let len = match this.session.write(buf) {
+            Ok(n) => n,
+            Err(ref err) if err.kind() == io::ErrorKind::WouldBlock =>
+                return Poll::Pending,
+            Err(err) => return Poll::Ready(Err(err))
+        };
         while this.session.wants_write() {
             match this.complete_inner_io(cx, Focus::Writable) {
                 Poll::Ready(Ok(_)) => (),
@@ -217,6 +224,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
             match this.session.write(buf) {
                 Ok(0) => Poll::Pending,
                 Ok(n) => Poll::Ready(Ok(n)),
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Pending,
                 Err(err) => Poll::Ready(Err(err))
             }
         }
