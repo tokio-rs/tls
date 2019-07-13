@@ -74,8 +74,8 @@ impl<IO> AsyncRead for TlsStream<IO>
 where
     IO: AsyncRead + AsyncWrite + Unpin,
 {
-    unsafe fn initializer(&self) -> Initializer {
-        Initializer::nop()
+    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
+        self.io.prepare_uninitialized_buffer(buf)
     }
 
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
@@ -192,7 +192,7 @@ where
         stream.as_mut_pin().poll_flush(cx)
     }
 
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         if self.state.writeable() {
             self.session.send_close_notify();
             self.state.shutdown_write();
@@ -201,6 +201,6 @@ where
         let this = self.get_mut();
         let mut stream = Stream::new(&mut this.io, &mut this.session)
             .set_eof(!this.state.readable());
-        stream.as_mut_pin().poll_close(cx)
+        stream.as_mut_pin().poll_shutdown(cx)
     }
 }

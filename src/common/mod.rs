@@ -1,11 +1,10 @@
 use std::pin::Pin;
-use std::task::Poll;
+use std::task::{ Poll, Context };
 use std::marker::Unpin;
-use std::io::{ self, Read };
-use rustls::{ Session, WriteV };
-use futures::task::Context;
-use futures::io::{ AsyncRead, AsyncWrite, IoSlice };
-use smallvec::SmallVec;
+use std::io::{ self, Read, Write };
+use rustls::Session;
+use tokio_io::{ AsyncRead, AsyncWrite };
+use tokio_futures as futures;
 
 
 pub struct Stream<'a, IO, S> {
@@ -154,27 +153,31 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
 
 impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> WriteTls<IO, S> for Stream<'a, IO, S> {
     fn write_tls(&mut self, cx: &mut Context) -> io::Result<usize> {
-        struct Writer<'a, 'b, IO> {
-            io: &'a mut IO,
+        // TODO writev
+
+        struct Writer<'a, 'b, T> {
+            io: &'a mut T,
             cx: &'a mut Context<'b>
         }
 
-        impl<'a, 'b, IO: AsyncWrite + Unpin> WriteV for Writer<'a, 'b, IO> {
-            fn writev(&mut self, vbytes: &[&[u8]]) -> io::Result<usize> {
-                let vbytes = vbytes
-                    .into_iter()
-                    .map(|v| IoSlice::new(v))
-                    .collect::<SmallVec<[IoSlice<'_>; 64]>>();
+        impl<'a, 'b, T: AsyncWrite + Unpin> Write for Writer<'a, 'b, T> {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                match Pin::new(&mut self.io).poll_write(self.cx, buf) {
+                    Poll::Ready(result) => result,
+                    Poll::Pending => Err(io::ErrorKind::WouldBlock.into())
+                }
+            }
 
-                match Pin::new(&mut self.io).poll_write_vectored(self.cx, &vbytes) {
+            fn flush(&mut self) -> io::Result<()> {
+                match Pin::new(&mut self.io).poll_flush(self.cx) {
                     Poll::Ready(result) => result,
                     Poll::Pending => Err(io::ErrorKind::WouldBlock.into())
                 }
             }
         }
 
-        let mut vecio = Writer { io: self.io, cx };
-        self.session.writev_tls(&mut vecio)
+        let mut writer = Writer { io: self.io, cx };
+        self.session.write_tls(&mut writer)
     }
 }
 
@@ -240,13 +243,13 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
         Pin::new(&mut this.io).poll_flush(cx)
     }
 
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
 
         while this.session.wants_write() {
             futures::ready!(this.complete_inner_io(cx, Focus::Writable))?;
         }
-        Pin::new(&mut this.io).poll_close(cx)
+        Pin::new(&mut this.io).poll_shutdown(cx)
     }
 }
 
