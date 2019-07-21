@@ -4,7 +4,7 @@ use std::marker::Unpin;
 use std::io::{ self, Read, Write };
 use rustls::Session;
 use tokio_io::{ AsyncRead, AsyncWrite };
-use tokio_futures as futures;
+use futures_core as futures;
 
 
 pub struct Stream<'a, IO, S> {

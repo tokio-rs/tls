@@ -13,7 +13,7 @@ use std::pin::Pin;
 use std::future::Future;
 use std::task::{ Poll, Context };
 use tokio_io::{ AsyncRead, AsyncWrite };
-use tokio_futures as futures;
+use futures_core as futures;
 use rustls::{ ClientConfig, ClientSession, ServerConfig, ServerSession };
 use webpki::DNSNameRef;
 use common::Stream;
