@@ -17,7 +17,7 @@ appveyor = { repository = "quininer/tokio-rustls" }
 
 [dependencies]
 smallvec = "0.6"
-tokio-io = { git = "https://github.com/tokio-rs/tokio" }
+tokio-io = "0.2.0-alpha.1"
 futures-core-preview = "0.3.0-alpha.17"
 rustls = "0.15"
 webpki = "0.19"
@@ -26,6 +26,6 @@ webpki = "0.19"
 early-data = []
 
 [dev-dependencies]
-tokio = { git = "https://github.com/tokio-rs/tokio" }
+tokio = "0.2.0-alpha.1"
 lazy_static = "1"
 webpki-roots = "0.16"
