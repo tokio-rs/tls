@@ -1,9 +1,8 @@
 use std::io;
 use std::sync::Arc;
 use std::net::ToSocketAddrs;
-use futures::executor;
-use futures::prelude::*;
-use romio::tcp::TcpStream;
+use tokio::prelude::*;
+use tokio::net::TcpStream;
 use rustls::ClientConfig;
 use crate::{ TlsConnector, client::TlsStream };
 
@@ -28,19 +27,21 @@ async fn get(config: Arc<ClientConfig>, domain: &str, rtt0: bool)
     Ok((stream, String::from_utf8(buf).unwrap()))
 }
 
-#[test]
-fn test_0rtt() {
+#[tokio::test]
+async fn test_0rtt() -> io::Result<()> {
     let mut config = ClientConfig::new();
     config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
     config.enable_early_data = true;
     let config = Arc::new(config);
     let domain = "mozilla-modern.badssl.com";
 
-    let (_, output) = executor::block_on(get(config.clone(), domain, false)).unwrap();
+    let (_, output) = get(config.clone(), domain, false).await?;
     assert!(output.contains("<title>mozilla-modern.badssl.com</title>"));
 
-    let (io, output) = executor::block_on(get(config.clone(), domain, true)).unwrap();
+    let (io, output) = get(config.clone(), domain, true).await?;
     assert!(output.contains("<title>mozilla-modern.badssl.com</title>"));
 
     assert_eq!(io.early_data.0, 0);
+
+    Ok(())
 }
