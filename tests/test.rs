@@ -6,10 +6,10 @@ use std::sync::Arc;
 use std::sync::mpsc::channel;
 use std::net::SocketAddr;
 use lazy_static::lazy_static;
-use futures::prelude::*;
-use futures::executor;
-use futures::task::SpawnExt;
-use romio::tcp::{ TcpListener, TcpStream };
+use tokio::prelude::*;
+use tokio::runtime::current_thread;
+use tokio::net::{ TcpListener, TcpStream };
+use futures_util::try_future::TryFutureExt;
 use rustls::{ ServerConfig, ClientConfig };
 use rustls::internal::pemfile::{ certs, rsa_private_keys };
 use tokio_rustls::{ TlsConnector, TlsAcceptor };
@@ -31,31 +31,39 @@ lazy_static!{
         let (send, recv) = channel();
 
         thread::spawn(move || {
-            let done = async {
+            let mut runtime = current_thread::Runtime::new().unwrap();
+            let handle = runtime.handle();
+
+            let done = async move {
                 let addr = SocketAddr::from(([127, 0, 0, 1], 0));
-                let mut pool = executor::ThreadPool::new()?;
-                let mut listener = TcpListener::bind(&addr)?;
+                let listener = TcpListener::bind(&addr)?;
 
                 send.send(listener.local_addr()?).unwrap();
 
                 let mut incoming = listener.incoming();
                 while let Some(stream) = incoming.next().await {
                     let acceptor = acceptor.clone();
-                    pool.spawn(
-                        async move {
-                            let stream = acceptor.accept(stream?).await?;
-                            let (mut reader, mut write) = stream.split();
-                            reader.copy_into(&mut write).await?;
-                            Ok(()) as io::Result<()>
-                        }
-                        .unwrap_or_else(|err| eprintln!("{:?}", err))
-                    ).unwrap();
+                    let fut = async move {
+                        let mut stream = acceptor.accept(stream?).await?;
+
+// TODO split
+//                        let (mut reader, mut write) = stream.split();
+//                        reader.copy(&mut write).await?;
+
+                        let mut buf = vec![0; 8192];
+                        let n = stream.read(&mut buf).await?;
+                        stream.write(&buf[..n]).await?;
+
+                        Ok(()) as io::Result<()>
+                    };
+
+                    handle.spawn(fut.unwrap_or_else(|err| eprintln!("{:?}", err))).unwrap();
                 }
 
                 Ok(()) as io::Result<()>
             };
 
-            executor::block_on(done).unwrap();
+            runtime.block_on(done.unwrap_or_else(|err| eprintln!("{:?}", err)));
         });
 
         let addr = recv.recv().unwrap();
@@ -81,12 +89,12 @@ async fn start_client(addr: SocketAddr, domain: &str, config: Arc<ClientConfig>)
 
     assert_eq!(buf, FILE);
 
-    stream.close().await?;
+    stream.shutdown().await?;
     Ok(())
 }
 
-#[test]
-fn pass() {
+#[tokio::test]
+async fn pass() -> io::Result<()> {
     let (addr, domain, chain) = start_server();
 
     let mut config = ClientConfig::new();
@@ -94,11 +102,13 @@ fn pass() {
     config.root_store.add_pem_file(&mut chain).unwrap();
     let config = Arc::new(config);
 
-    executor::block_on(start_client(addr.clone(), domain, config.clone())).unwrap();
+    start_client(addr.clone(), domain, config.clone()).await?;
+
+    Ok(())
 }
 
-#[test]
-fn fail() {
+#[tokio::test]
+async fn fail() -> io::Result<()> {
     let (addr, domain, chain) = start_server();
 
     let mut config = ClientConfig::new();
@@ -107,5 +117,8 @@ fn fail() {
     let config = Arc::new(config);
 
     assert_ne!(domain, &"google.com");
-    assert!(executor::block_on(start_client(addr.clone(), "google.com", config)).is_err());
+    let ret = start_client(addr.clone(), "google.com", config).await;
+    assert!(ret.is_err());
+
+    Ok(())
 }

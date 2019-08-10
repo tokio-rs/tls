@@ -15,9 +15,9 @@ matrix:
     - rust: stable
 
 script:
-    - cargo test
-    - cargo test --features early-data
-    - cd examples/server
-    - cargo check
-    - cd ../../examples/client
-    - cargo check
+    - cargo test --test test
+      # - cargo test --features early-data
+      # - cd examples/server
+      # - cargo check
+      # - cd ../../examples/client
+      # - cargo check
