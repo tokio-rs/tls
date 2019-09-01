@@ -44,13 +44,15 @@ lazy_static!{
                     let fut = async move {
                         let mut stream = acceptor.accept(stream?).await?;
 
-// TODO split
-//                        let (mut reader, mut write) = stream.split();
-//                        reader.copy(&mut write).await?;
+                        // TODO split
+                        //
+                        // let (mut reader, mut write) = stream.split();
+                        // reader.copy(&mut write).await?;
 
                         let mut buf = vec![0; 8192];
                         let n = stream.read(&mut buf).await?;
                         stream.write(&buf[..n]).await?;
+                        let _ = stream.read(&mut buf).await?;
 
                         Ok(()) as io::Result<()>
                     };

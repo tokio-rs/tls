@@ -249,6 +249,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
         while this.session.wants_write() {
             futures::ready!(this.complete_inner_io(cx, Focus::Writable))?;
         }
+
         Pin::new(&mut this.io).poll_shutdown(cx)
     }
 }
