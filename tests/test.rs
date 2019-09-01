@@ -1,5 +1,3 @@
-#![feature(async_await)]
-
 use std::{ io, thread };
 use std::io::{ BufReader, Cursor };
 use std::sync::Arc;
@@ -36,7 +34,7 @@ lazy_static!{
 
             let done = async move {
                 let addr = SocketAddr::from(([127, 0, 0, 1], 0));
-                let listener = TcpListener::bind(&addr)?;
+                let listener = TcpListener::bind(&addr).await?;
 
                 send.send(listener.local_addr()?).unwrap();
 
@@ -96,6 +94,13 @@ async fn start_client(addr: SocketAddr, domain: &str, config: Arc<ClientConfig>)
 #[tokio::test]
 async fn pass() -> io::Result<()> {
     let (addr, domain, chain) = start_server();
+
+    // TODO: not sure how to resolve this right now but since
+    // TcpStream::bind now returns a future it creates a race
+    // condition until its ready sometimes.
+    use std::time::*;
+    let deadline = Instant::now() + Duration::from_secs(1);
+    tokio::timer::delay(deadline);
 
     let mut config = ClientConfig::new();
     let mut chain = BufReader::new(Cursor::new(chain));
