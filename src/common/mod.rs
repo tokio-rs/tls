@@ -110,6 +110,14 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
                 }
             }
 
+            if let Focus::Writable = focus {
+                if !write_would_block {
+                    return Poll::Ready(Ok((rdlen, wrlen)));
+                } else {
+                    return Poll::Pending;
+                }
+            }
+
             if !self.eof && self.session.wants_read() {
                 match self.complete_read_io(cx) {
                     Poll::Ready(Ok(0)) => self.eof = true,
