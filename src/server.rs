@@ -105,6 +105,8 @@ impl<IO> AsyncWrite for TlsStream<IO>
 where
     IO: AsyncRead + AsyncWrite + Unpin,
 {
+    /// Note: that it does not guarantee the final data to be sent.
+    /// To be cautious, you must manually call `flush`.
     fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
         let this = self.get_mut();
         let mut stream = Stream::new(&mut this.io, &mut this.session)

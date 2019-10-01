@@ -7,6 +7,7 @@ use lazy_static::lazy_static;
 use tokio::prelude::*;
 use tokio::runtime::current_thread;
 use tokio::net::{ TcpListener, TcpStream };
+use tokio::io::split;
 use futures_util::try_future::TryFutureExt;
 use rustls::{ ServerConfig, ClientConfig };
 use rustls::internal::pemfile::{ certs, rsa_private_keys };
@@ -42,17 +43,10 @@ lazy_static!{
                 while let Some(stream) = incoming.next().await {
                     let acceptor = acceptor.clone();
                     let fut = async move {
-                        let mut stream = acceptor.accept(stream?).await?;
+                        let stream = acceptor.accept(stream?).await?;
 
-                        // TODO split
-                        //
-                        // let (mut reader, mut write) = stream.split();
-                        // reader.copy(&mut write).await?;
-
-                        let mut buf = vec![0; 8192];
-                        let n = stream.read(&mut buf).await?;
-                        stream.write(&buf[..n]).await?;
-                        stream.flush().await?;
+                        let (mut reader, mut writer) = split(stream);
+                        reader.copy(&mut writer).await?;
 
                         Ok(()) as io::Result<()>
                     }.unwrap_or_else(|err| eprintln!("server: {:?}", err));
@@ -67,7 +61,7 @@ lazy_static!{
         });
 
         let addr = recv.recv().unwrap();
-        (addr, "localhost", CHAIN)
+        (addr, "testserver.com", CHAIN)
     };
 }
 

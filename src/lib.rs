@@ -195,7 +195,3 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Accept<IO> {
         Pin::new(&mut self.0).poll(cx)
     }
 }
-
-#[cfg(feature = "early-data")]
-#[cfg(test)]
-mod test_0rtt;
