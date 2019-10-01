@@ -48,11 +48,11 @@ where
             let mut stream = Stream::new(io, session).set_eof(eof);
 
             if stream.session.is_handshaking() {
-                futures::ready!(stream.handshake(cx))?;
+                futures::ready!(stream.complete_io(cx))?;
             }
 
             if stream.session.wants_write() {
-                futures::ready!(stream.handshake(cx))?;
+                futures::ready!(stream.complete_io(cx))?;
             }
         }
 
