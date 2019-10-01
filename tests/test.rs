@@ -53,7 +53,6 @@ lazy_static!{
                         let n = stream.read(&mut buf).await?;
                         stream.write(&buf[..n]).await?;
                         stream.flush().await?;
-                        let _ = stream.read(&mut buf).await?;
 
                         Ok(()) as io::Result<()>
                     }.unwrap_or_else(|err| eprintln!("server: {:?}", err));
@@ -91,7 +90,6 @@ async fn start_client(addr: SocketAddr, domain: &str, config: Arc<ClientConfig>)
 
     assert_eq!(buf, FILE);
 
-    stream.shutdown().await?;
     Ok(())
 }
 
