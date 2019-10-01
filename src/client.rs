@@ -52,7 +52,7 @@ where
             let (io, session) = stream.get_mut();
             let mut stream = Stream::new(io, session).set_eof(eof);
 
-            if stream.session.is_handshaking() {
+            while stream.session.is_handshaking() {
                 futures::ready!(stream.handshake(cx))?;
             }
 
@@ -127,7 +127,7 @@ where
 
                 // write early data
                 if let Some(mut early_data) = stream.session.early_data() {
-                    let len = match dbg!(early_data.write(buf)) {
+                    let len = match early_data.write(buf) {
                         Ok(n) => n,
                         Err(ref err) if err.kind() == io::ErrorKind::WouldBlock =>
                             return Poll::Pending,
@@ -138,7 +138,7 @@ where
                 }
 
                 // complete handshake
-                if stream.session.is_handshaking() {
+                while stream.session.is_handshaking() {
                     futures::ready!(stream.handshake(cx))?;
                 }
 
@@ -166,7 +166,7 @@ where
 
         #[cfg(feature = "early-data")] {
             // complete handshake
-            if stream.session.is_handshaking() {
+            while stream.session.is_handshaking() {
                 futures::ready!(stream.handshake(cx))?;
             }
         }

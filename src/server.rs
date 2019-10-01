@@ -47,7 +47,7 @@ where
             let (io, session) = stream.get_mut();
             let mut stream = Stream::new(io, session).set_eof(eof);
 
-            if stream.session.is_handshaking() {
+            while stream.session.is_handshaking() {
                 futures::ready!(stream.handshake(cx))?;
             }
 

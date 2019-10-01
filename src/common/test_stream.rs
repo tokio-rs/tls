@@ -187,7 +187,7 @@ fn do_handshake(client: &mut ClientSession, server: &mut ServerSession, cx: &mut
     let mut good = Good(server);
     let mut stream = Stream::new(&mut good, client);
 
-    if stream.session.is_handshaking() {
+    while stream.session.is_handshaking() {
         ready!(stream.handshake(cx))?;
     }
 
