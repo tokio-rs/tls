@@ -52,18 +52,19 @@ lazy_static!{
                         let mut buf = vec![0; 8192];
                         let n = stream.read(&mut buf).await?;
                         stream.write(&buf[..n]).await?;
+                        stream.flush().await?;
                         let _ = stream.read(&mut buf).await?;
 
                         Ok(()) as io::Result<()>
-                    };
+                    }.unwrap_or_else(|err| eprintln!("server: {:?}", err));
 
-                    handle.spawn(fut.unwrap_or_else(|err| eprintln!("{:?}", err))).unwrap();
+                    handle.spawn(fut).unwrap();
                 }
 
                 Ok(()) as io::Result<()>
-            };
+            }.unwrap_or_else(|err| eprintln!("server: {:?}", err));
 
-            runtime.block_on(done.unwrap_or_else(|err| eprintln!("{:?}", err)));
+            runtime.block_on(done);
         });
 
         let addr = recv.recv().unwrap();
@@ -85,6 +86,7 @@ async fn start_client(addr: SocketAddr, domain: &str, config: Arc<ClientConfig>)
     let stream = TcpStream::connect(&addr).await?;
     let mut stream = config.connect(domain, stream).await?;
     stream.write_all(FILE).await?;
+    stream.flush().await?;
     stream.read_exact(&mut buf).await?;
 
     assert_eq!(buf, FILE);

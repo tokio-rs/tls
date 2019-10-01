@@ -83,6 +83,7 @@ async fn stream_good() -> io::Result<()> {
         stream.read_to_end(&mut buf).await?;
         assert_eq!(buf, FILE);
         stream.write_all(b"Hello World!").await?;
+        stream.flush().await?;
     }
 
     let mut buf = String::new();
@@ -119,12 +120,12 @@ async fn stream_handshake() -> io::Result<()> {
     {
         let mut good = Good(&mut server);
         let mut stream = Stream::new(&mut good, &mut client);
-        let (r, w) = poll_fn(|cx| stream.complete_io(cx)).await?;
+        let (r, w) = poll_fn(|cx| stream.handshake(cx)).await?;
 
         assert!(r > 0);
         assert!(w > 0);
 
-        poll_fn(|cx| stream.complete_io(cx)).await?; // finish server handshake
+        poll_fn(|cx| stream.handshake(cx)).await?; // finish server handshake
     }
 
     assert!(!server.is_handshaking());
@@ -141,7 +142,7 @@ async fn stream_handshake_eof() -> io::Result<()> {
     let mut stream = Stream::new(&mut bad, &mut client);
 
     let mut cx = Context::from_waker(noop_waker_ref());
-    let r = stream.complete_io(&mut cx);
+    let r = stream.handshake(&mut cx);
     assert_eq!(r.map_err(|err| err.kind()), Poll::Ready(Err(io::ErrorKind::UnexpectedEof)));
 
     Ok(()) as io::Result<()>
@@ -187,11 +188,11 @@ fn do_handshake(client: &mut ClientSession, server: &mut ServerSession, cx: &mut
     let mut stream = Stream::new(&mut good, client);
 
     if stream.session.is_handshaking() {
-        ready!(stream.complete_io(cx))?;
+        ready!(stream.handshake(cx))?;
     }
 
     if stream.session.wants_write() {
-        ready!(stream.complete_io(cx))?;
+        ready!(stream.handshake(cx))?;
     }
 
     Poll::Ready(Ok(()))

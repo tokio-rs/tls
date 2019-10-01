@@ -53,11 +53,11 @@ where
             let mut stream = Stream::new(io, session).set_eof(eof);
 
             if stream.session.is_handshaking() {
-                futures::ready!(stream.complete_io(cx))?;
+                futures::ready!(stream.handshake(cx))?;
             }
 
             if stream.session.wants_write() {
-                futures::ready!(stream.complete_io(cx))?;
+                futures::ready!(stream.handshake(cx))?;
             }
         }
 
@@ -81,32 +81,7 @@ where
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         match self.state {
             #[cfg(feature = "early-data")]
-            TlsState::EarlyData => {
-                let this = self.get_mut();
-
-                let mut stream = Stream::new(&mut this.io, &mut this.session)
-                    .set_eof(!this.state.readable());
-                let (pos, data) = &mut this.early_data;
-
-                // complete handshake
-                if stream.session.is_handshaking() {
-                    futures::ready!(stream.complete_io(cx))?;
-                }
-
-                // write early data (fallback)
-                if !stream.session.is_early_data_accepted() {
-                    while *pos < data.len() {
-                        let len = futures::ready!(stream.as_mut_pin().poll_write(cx, &data[*pos..]))?;
-                        *pos += len;
-                    }
-                }
-
-                // end
-                this.state = TlsState::Stream;
-                data.clear();
-
-                Pin::new(this).poll_read(cx, buf)
-            }
+            TlsState::EarlyData => Poll::Pending,
             TlsState::Stream | TlsState::WriteShutdown => {
                 let this = self.get_mut();
                 let mut stream = Stream::new(&mut this.io, &mut this.session)
@@ -116,7 +91,7 @@ where
                     Poll::Ready(Ok(0)) => {
                         this.state.shutdown_read();
                         Poll::Ready(Ok(0))
-                    }
+                    },
                     Poll::Ready(Ok(n)) => Poll::Ready(Ok(n)),
                     Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::ConnectionAborted => {
                         this.state.shutdown_read();
@@ -125,9 +100,8 @@ where
                             this.state.shutdown_write();
                         }
                         Poll::Ready(Ok(0))
-                    }
-                    Poll::Ready(Err(err)) => Poll::Ready(Err(err)),
-                    Poll::Pending => Poll::Pending
+                    },
+                    output => output
                 }
             }
             TlsState::ReadShutdown | TlsState::FullyShutdown => Poll::Ready(Ok(0)),
@@ -153,7 +127,7 @@ where
 
                 // write early data
                 if let Some(mut early_data) = stream.session.early_data() {
-                    let len = match early_data.write(buf) {
+                    let len = match dbg!(early_data.write(buf)) {
                         Ok(n) => n,
                         Err(ref err) if err.kind() == io::ErrorKind::WouldBlock =>
                             return Poll::Pending,
@@ -165,7 +139,7 @@ where
 
                 // complete handshake
                 if stream.session.is_handshaking() {
-                    futures::ready!(stream.complete_io(cx))?;
+                    futures::ready!(stream.handshake(cx))?;
                 }
 
                 // write early data (fallback)
@@ -189,6 +163,14 @@ where
         let this = self.get_mut();
         let mut stream = Stream::new(&mut this.io, &mut this.session)
             .set_eof(!this.state.readable());
+
+        #[cfg(feature = "early-data")] {
+            // complete handshake
+            if stream.session.is_handshaking() {
+                futures::ready!(stream.handshake(cx))?;
+            }
+        }
+
         stream.as_mut_pin().poll_flush(cx)
     }
 
@@ -201,6 +183,11 @@ where
         let this = self.get_mut();
         let mut stream = Stream::new(&mut this.io, &mut this.session)
             .set_eof(!this.state.readable());
+
+        // TODO
+        //
+        // should we complete the handshake?
+
         stream.as_mut_pin().poll_shutdown(cx)
     }
 }

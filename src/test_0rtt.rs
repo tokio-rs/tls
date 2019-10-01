@@ -22,6 +22,7 @@ async fn get(config: Arc<ClientConfig>, domain: &str, rtt0: bool)
     let stream = TcpStream::connect(&addr).await?;
     let mut stream = connector.connect(domain, stream).await?;
     stream.write_all(input.as_bytes()).await?;
+    stream.flush().await?;
     stream.read_to_end(&mut buf).await?;
 
     Ok((stream, String::from_utf8(buf).unwrap()))
