@@ -10,7 +10,6 @@ use std::task::{ Context, Poll };
 use std::time::Duration;
 use tokio::prelude::*;
 use tokio::net::TcpStream;
-use tokio::io::split;
 use tokio::timer::delay_for;
 use futures_util::{ future, ready };
 use rustls::ClientConfig;
@@ -41,22 +40,17 @@ async fn send(config: Arc<ClientConfig>, addr: SocketAddr, data: &[u8])
     stream.write_all(data).await?;
     stream.flush().await?;
 
-    let (r, mut w) = split(stream);
-    let fut = Read1(r);
-    let fut2 = async move {
-        // sleep 3s
-        //
-        // see https://www.mail-archive.com/openssl-users@openssl.org/msg84451.html
-        delay_for(Duration::from_secs(3)).await;
-        w.shutdown().await?;
-        Ok(w) as io::Result<_>
+    // sleep 3s
+    //
+    // see https://www.mail-archive.com/openssl-users@openssl.org/msg84451.html
+    let sleep3 = delay_for(Duration::from_secs(3));
+    let mut stream = match future::select(Read1(stream), sleep3).await {
+        future::Either::Right((_, Read1(stream))) => stream,
+        future::Either::Left((Err(err), _)) => return Err(err),
+        future::Either::Left((Ok(_), _)) => unreachable!(),
     };
 
-    let stream = match future::select(fut, fut2.boxed()).await {
-        future::Either::Left(_) => unreachable!(),
-        future::Either::Right((Ok(w), Read1(r))) => r.unsplit(w),
-        future::Either::Right((Err(err), _)) => return Err(err)
-    };
+    stream.shutdown().await?;
 
     Ok(stream)
 }
