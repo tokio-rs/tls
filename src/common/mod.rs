@@ -152,18 +152,17 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
 }
 
 impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a, IO, S> {
-    fn poll_read(self: Pin<&mut Self>, cx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
-        let this = self.get_mut();
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         let mut pos = 0;
 
         while pos != buf.len() {
             let mut would_block = false;
 
             // read a packet
-            while this.session.wants_read() {
-                match this.read_io(cx) {
+            while self.session.wants_read() {
+                match self.read_io(cx) {
                     Poll::Ready(Ok(0)) => {
-                        this.eof = true;
+                        self.eof = true;
                         break
                     },
                     Poll::Ready(Ok(_)) => (),
@@ -175,11 +174,11 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a
                 }
             }
 
-            this.process_new_packets(cx)?;
+            self.process_new_packets(cx)?;
 
-            return match this.session.read(&mut buf[pos..]) {
+            return match self.session.read(&mut buf[pos..]) {
                 Ok(0) if pos == 0 && would_block => Poll::Pending,
-                Ok(n) if this.eof || would_block => Poll::Ready(Ok(pos + n)),
+                Ok(n) if self.eof || would_block => Poll::Ready(Ok(pos + n)),
                 Ok(n) => {
                     pos += n;
                     continue
@@ -196,21 +195,20 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a
 }
 
 impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'a, IO, S> {
-    fn poll_write(self: Pin<&mut Self>, cx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
-        let this = self.get_mut();
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
         let mut pos = 0;
 
         while pos != buf.len() {
             let mut would_block = false;
 
-            match this.session.write(&buf[pos..]) {
+            match self.session.write(&buf[pos..]) {
                 Ok(n) => pos += n,
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => (),
                 Err(err) => return Poll::Ready(Err(err))
             };
 
-            while this.session.wants_write() {
-                match this.write_io(cx) {
+            while self.session.wants_write() {
+                match self.write_io(cx) {
                     Poll::Ready(Ok(0)) | Poll::Pending => {
                         would_block = true;
                         break
@@ -230,24 +228,20 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
         Poll::Ready(Ok(pos))
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
-        let this = self.get_mut();
-
-        this.session.flush()?;
-        while this.session.wants_write() {
-            futures::ready!(this.write_io(cx))?;
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
+        self.session.flush()?;
+        while self.session.wants_write() {
+            futures::ready!(self.write_io(cx))?;
         }
-        Pin::new(&mut this.io).poll_flush(cx)
+        Pin::new(&mut self.io).poll_flush(cx)
     }
 
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        let this = self.get_mut();
-
-        while this.session.wants_write() {
-            futures::ready!(this.write_io(cx))?;
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        while self.session.wants_write() {
+            futures::ready!(self.write_io(cx))?;
         }
 
-        Pin::new(&mut this.io).poll_shutdown(cx)
+        Pin::new(&mut self.io).poll_shutdown(cx)
     }
 }
 
