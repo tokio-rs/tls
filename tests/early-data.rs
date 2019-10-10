@@ -96,17 +96,24 @@ async fn test_0rtt() -> io::Result<()> {
     let stdout = handle.0.stdout.as_mut().unwrap();
     let mut lines = BufReader::new(stdout).lines();
 
+    let mut f1 = false;
+    let mut f2 = false;
+
     for line in lines.by_ref() {
         if line?.contains("hello") {
+            f1 = true;
             break
         }
     }
 
     for line in lines.by_ref() {
         if line?.contains("world!") {
+            f2 = true;
             break
         }
     }
+
+    assert!(f1 && f2);
 
     Ok(())
 }

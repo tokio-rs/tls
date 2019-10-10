@@ -146,6 +146,7 @@ impl TlsConnector {
 }
 
 impl TlsAcceptor {
+    #[inline]
     pub fn accept<IO>(&self, stream: IO) -> Accept<IO>
     where
         IO: AsyncRead + AsyncWrite + Unpin,
@@ -153,7 +154,6 @@ impl TlsAcceptor {
         self.accept_with(stream, |_| ())
     }
 
-    #[inline]
     pub fn accept_with<IO, F>(&self, stream: IO, f: F) -> Accept<IO>
     where
         IO: AsyncRead + AsyncWrite + Unpin,
