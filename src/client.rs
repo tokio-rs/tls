@@ -56,8 +56,8 @@ where
                 futures::ready!(stream.handshake(cx))?;
             }
 
-            if stream.session.wants_write() {
-                futures::ready!(stream.handshake(cx))?;
+            while stream.session.wants_write() {
+                futures::ready!(stream.write_io(cx))?;
             }
         }
 

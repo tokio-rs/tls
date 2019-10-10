@@ -33,7 +33,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
         Pin::new(self)
     }
 
-    fn process_new_packets(&mut self, cx: &mut Context) -> io::Result<()> {
+    pub fn process_new_packets(&mut self, cx: &mut Context) -> io::Result<()> {
         self.session.process_new_packets()
             .map_err(|err| {
                 // In case we have an alert to send describing this error,
@@ -45,7 +45,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
             })
     }
 
-    fn read_io(&mut self, cx: &mut Context) -> Poll<io::Result<usize>> {
+    pub fn read_io(&mut self, cx: &mut Context) -> Poll<io::Result<usize>> {
         struct Reader<'a, 'b, T> {
             io: &'a mut T,
             cx: &'a mut Context<'b>
@@ -71,7 +71,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
         Poll::Ready(Ok(n))
     }
 
-    fn write_io(&mut self, cx: &mut Context) -> Poll<io::Result<usize>> {
+    pub fn write_io(&mut self, cx: &mut Context) -> Poll<io::Result<usize>> {
         struct Writer<'a, 'b, T> {
             io: &'a mut T,
             cx: &'a mut Context<'b>

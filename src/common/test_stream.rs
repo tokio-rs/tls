@@ -191,8 +191,8 @@ fn do_handshake(client: &mut ClientSession, server: &mut ServerSession, cx: &mut
         ready!(stream.handshake(cx))?;
     }
 
-    if stream.session.wants_write() {
-        ready!(stream.handshake(cx))?;
+    while stream.session.wants_write() {
+        ready!(stream.write_io(cx))?;
     }
 
     Poll::Ready(Ok(()))

@@ -40,11 +40,11 @@ async fn send(config: Arc<ClientConfig>, addr: SocketAddr, data: &[u8])
     stream.write_all(data).await?;
     stream.flush().await?;
 
-    // sleep 3s
+    // sleep 1s
     //
     // see https://www.mail-archive.com/openssl-users@openssl.org/msg84451.html
-    let sleep3 = delay_for(Duration::from_secs(3));
-    let mut stream = match future::select(Read1(stream), sleep3).await {
+    let sleep1 = delay_for(Duration::from_secs(1));
+    let mut stream = match future::select(Read1(stream), sleep1).await {
         future::Either::Right((_, Read1(stream))) => stream,
         future::Either::Left((Err(err), _)) => return Err(err),
         future::Either::Left((Ok(_), _)) => unreachable!(),
@@ -77,7 +77,7 @@ async fn test_0rtt() -> io::Result<()> {
         .map(DropKill)?;
 
     // wait openssl server
-    delay_for(Duration::from_secs(3)).await;
+    delay_for(Duration::from_secs(1)).await;
 
     let mut config = ClientConfig::new();
     let mut chain = BufReader::new(Cursor::new(include_str!("end.chain")));
