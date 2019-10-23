@@ -1,6 +1,6 @@
 [package]
 name = "tokio-rustls"
-version = "0.12.0-alpha.4"
+version = "0.12.0-alpha.5"
 authors = ["quininer kel <quininer@live.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/quininer/tokio-rustls"
@@ -29,4 +29,4 @@ early-data = []
 tokio = "=0.2.0-alpha.6"
 futures-util-preview = "0.3.0-alpha.19"
 lazy_static = "1"
-webpki-roots = "0.17"
+webpki-roots = "0.18"
