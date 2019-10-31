@@ -1,0 +1,32 @@
+name: Rust
+
+on: [push, pull_request]
+
+jobs:
+  cov:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+
+    - uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --features early-data
+      env:
+        'CARGO_INCREMENTAL': '0'
+        'RUSTFLAGS': '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Zno-landing-pads'
+
+    - id: grcov
+      uses: actions-rs/grcov@v0.1
+
+    - name: Update Codecov
+      uses: codecov/codecov-action@v1.0.3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file:  ${{ steps.grcov.outputs.report }}

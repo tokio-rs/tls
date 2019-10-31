@@ -42,6 +42,7 @@ async fn test_tls12() -> io::Result<()> {
     Ok(())
 }
 
+#[ignore]
 #[should_panic]
 #[test]
 fn test_tls13() {

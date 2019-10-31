@@ -12,8 +12,7 @@ categories = ["asynchronous", "cryptography", "network-programming"]
 edition = "2018"
 
 [badges]
-travis-ci = { repository = "quininer/tokio-rustls" }
-appveyor = { repository = "quininer/tokio-rustls" }
+github-actions = { repository = "quininer/tokio-rustls", workflow = "ci" }
 
 [dependencies]
 smallvec = "0.6"
