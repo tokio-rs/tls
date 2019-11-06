@@ -23,6 +23,7 @@ webpki = "0.21"
 
 [features]
 early-data = []
+dangerous_configuration = ["rustls/dangerous_configuration"]
 
 [dev-dependencies]
 tokio = "=0.2.0-alpha.6"
