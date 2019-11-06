@@ -1,20 +1,20 @@
 //! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
 
-pub mod client;
 mod common;
+pub mod client;
 pub mod server;
 
-use common::Stream;
-use futures_core as futures;
-use pin_project::{pin_project, project};
-use rustls::{ClientConfig, ClientSession, ServerConfig, ServerSession, Session};
-use std::future::Future;
+use std::{ io, mem };
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
-use std::{io, mem};
-use tokio_io::{AsyncRead, AsyncWrite};
+use std::future::Future;
+use std::task::{ Context, Poll };
+use futures_core as futures;
+use pin_project::{ pin_project, project };
+use tokio_io::{ AsyncRead, AsyncWrite };
 use webpki::DNSNameRef;
+use rustls::{ ClientConfig, ClientSession, ServerConfig, ServerSession, Session };
+use common::Stream;
 
 pub use rustls;
 pub use webpki;

@@ -154,7 +154,7 @@ where
 
                 // end
                 this.state = TlsState::Stream;
-                data.clear();
+                *data = Vec::new();
                 stream.as_mut_pin().poll_write(cx, buf)
             }
             _ => stream.as_mut_pin().poll_write(cx, buf),
@@ -171,6 +171,10 @@ where
             while stream.session.is_handshaking() {
                 futures::ready!(stream.handshake(cx))?;
             }
+
+            this.state = TlsState::Stream;
+            let (_, data) = &mut this.early_data;
+            *data = Vec::new();
         }
 
         stream.as_mut_pin().poll_flush(cx)
