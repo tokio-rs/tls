@@ -76,7 +76,7 @@ where
         let mut stream = Stream::new(&mut this.io, &mut this.session)
             .set_eof(!this.state.readable());
 
-        match this.state {
+        match &this.state {
             TlsState::Stream | TlsState::WriteShutdown => match stream.as_mut_pin().poll_read(cx, buf) {
                 Poll::Ready(Ok(0)) => {
                     this.state.shutdown_read();

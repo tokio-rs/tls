@@ -15,7 +15,6 @@ edition = "2018"
 github-actions = { repository = "quininer/tokio-rustls", workflow = "ci" }
 
 [dependencies]
-smallvec = "0.6"
 tokio-io = "=0.2.0-alpha.6"
 futures-core-preview = "=0.3.0-alpha.19"
 pin-project = "0.4"

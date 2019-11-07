@@ -19,10 +19,10 @@ use common::Stream;
 pub use rustls;
 pub use webpki;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 enum TlsState {
     #[cfg(feature = "early-data")]
-    EarlyData,
+    EarlyData(usize, Vec<u8>),
     Stream,
     ReadShutdown,
     WriteShutdown,
@@ -51,11 +51,24 @@ impl TlsState {
         }
     }
 
-    fn readable(self) -> bool {
+    fn readable(&self) -> bool {
         match self {
             TlsState::ReadShutdown | TlsState::FullyShutdown => false,
             _ => true,
         }
+    }
+
+    #[cfg(feature = "early-data")]
+    fn is_early_data(&self) -> bool {
+        match self {
+            TlsState::EarlyData(..) => true,
+            _ => false
+        }
+    }
+
+    #[cfg(not(feature = "early-data"))]
+    const fn is_early_data(&self) -> bool {
+        false
     }
 }
 
@@ -100,6 +113,7 @@ impl TlsConnector {
         self
     }
 
+    #[inline]
     pub fn connect<IO>(&self, domain: DNSNameRef, stream: IO) -> Connect<IO>
     where
         IO: AsyncRead + AsyncWrite + Unpin,
@@ -107,7 +121,6 @@ impl TlsConnector {
         self.connect_with(domain, stream, |_| ())
     }
 
-    #[inline]
     pub fn connect_with<IO, F>(&self, domain: DNSNameRef, stream: IO, f: F) -> Connect<IO>
     where
         IO: AsyncRead + AsyncWrite + Unpin,
@@ -116,33 +129,21 @@ impl TlsConnector {
         let mut session = ClientSession::new(&self.inner, domain);
         f(&mut session);
 
-        #[cfg(not(feature = "early-data"))]
-        {
-            Connect(client::MidHandshake::Handshaking(client::TlsStream {
-                session,
-                io: stream,
-                state: TlsState::Stream,
-            }))
-        }
+        Connect(client::MidHandshake::Handshaking(client::TlsStream {
+            io: stream,
 
-        #[cfg(feature = "early-data")]
-        {
-            Connect(if self.early_data && session.early_data().is_some() {
-                client::MidHandshake::EarlyData(client::TlsStream {
-                    session,
-                    io: stream,
-                    state: TlsState::EarlyData,
-                    early_data: (0, Vec::new()),
-                })
+            #[cfg(not(feature = "early-data"))]
+            state: TlsState::Stream,
+
+            #[cfg(feature = "early-data")]
+            state: if self.early_data && session.early_data().is_some() {
+                TlsState::EarlyData(0, Vec::new())
             } else {
-                client::MidHandshake::Handshaking(client::TlsStream {
-                    session,
-                    io: stream,
-                    state: TlsState::Stream,
-                    early_data: (0, Vec::new()),
-                })
-            })
-        }
+                TlsState::Stream
+            },
+
+            session
+        }))
     }
 }
 

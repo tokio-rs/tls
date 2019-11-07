@@ -8,15 +8,10 @@ pub struct TlsStream<IO> {
     pub(crate) io: IO,
     pub(crate) session: ClientSession,
     pub(crate) state: TlsState,
-
-    #[cfg(feature = "early-data")]
-    pub(crate) early_data: (usize, Vec<u8>),
 }
 
 pub(crate) enum MidHandshake<IO> {
     Handshaking(TlsStream<IO>),
-    #[cfg(feature = "early-data")]
-    EarlyData(TlsStream<IO>),
     End,
 }
 
@@ -48,23 +43,23 @@ where
         let this = self.get_mut();
 
         if let MidHandshake::Handshaking(stream) = this {
-            let eof = !stream.state.readable();
-            let (io, session) = stream.get_mut();
-            let mut stream = Stream::new(io, session).set_eof(eof);
+            if !stream.state.is_early_data() {
+                let eof = !stream.state.readable();
+                let (io, session) = stream.get_mut();
+                let mut stream = Stream::new(io, session).set_eof(eof);
 
-            while stream.session.is_handshaking() {
-                futures::ready!(stream.handshake(cx))?;
-            }
+                while stream.session.is_handshaking() {
+                    futures::ready!(stream.handshake(cx))?;
+                }
 
-            while stream.session.wants_write() {
-                futures::ready!(stream.write_io(cx))?;
+                while stream.session.wants_write() {
+                    futures::ready!(stream.write_io(cx))?;
+                }
             }
         }
 
         match mem::replace(this, MidHandshake::End) {
             MidHandshake::Handshaking(stream) => Poll::Ready(Ok(stream)),
-            #[cfg(feature = "early-data")]
-            MidHandshake::EarlyData(stream) => Poll::Ready(Ok(stream)),
             MidHandshake::End => panic!(),
         }
     }
@@ -81,7 +76,7 @@ where
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         match self.state {
             #[cfg(feature = "early-data")]
-            TlsState::EarlyData => Poll::Pending,
+            TlsState::EarlyData(..) => Poll::Pending,
             TlsState::Stream | TlsState::WriteShutdown => {
                 let this = self.get_mut();
                 let mut stream = Stream::new(&mut this.io, &mut this.session)
@@ -122,10 +117,8 @@ where
 
         match this.state {
             #[cfg(feature = "early-data")]
-            TlsState::EarlyData => {
+            TlsState::EarlyData(ref mut pos, ref mut data) => {
                 use std::io::Write;
-
-                let (pos, data) = &mut this.early_data;
 
                 // write early data
                 if let Some(mut early_data) = stream.session.early_data() {
@@ -154,7 +147,6 @@ where
 
                 // end
                 this.state = TlsState::Stream;
-                *data = Vec::new();
                 stream.as_mut_pin().poll_write(cx, buf)
             }
             _ => stream.as_mut_pin().poll_write(cx, buf),
@@ -167,9 +159,7 @@ where
             .set_eof(!this.state.readable());
 
         #[cfg(feature = "early-data")] {
-            if let TlsState::EarlyData = this.state {
-                let (pos, data) = &mut this.early_data;
-
+            if let TlsState::EarlyData(ref mut pos, ref mut data) = this.state {
                 // complete handshake
                 while stream.session.is_handshaking() {
                     futures::ready!(stream.handshake(cx))?;
@@ -184,8 +174,6 @@ where
                 }
 
                 this.state = TlsState::Stream;
-                let (_, data) = &mut this.early_data;
-                *data = Vec::new();
             }
         }
 
@@ -200,7 +188,7 @@ where
 
         #[cfg(feature = "early-data")] {
             // we skip the handshake
-            if let TlsState::EarlyData = self.state {
+            if let TlsState::EarlyData(..) = self.state {
                 return Pin::new(&mut self.io).poll_shutdown(cx);
             }
         }
