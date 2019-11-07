@@ -129,7 +129,9 @@ where
                         Err(err) => return Poll::Ready(Err(err))
                     };
                     data.extend_from_slice(&buf[..len]);
-                    return Poll::Ready(Ok(len));
+                    if len != 0 {
+                        return Poll::Ready(Ok(len));
+                    }
                 }
 
                 // complete handshake
