@@ -167,14 +167,26 @@ where
             .set_eof(!this.state.readable());
 
         #[cfg(feature = "early-data")] {
-            // complete handshake
-            while stream.session.is_handshaking() {
-                futures::ready!(stream.handshake(cx))?;
-            }
+            if let TlsState::EarlyData = this.state {
+                let (pos, data) = &mut this.early_data;
 
-            this.state = TlsState::Stream;
-            let (_, data) = &mut this.early_data;
-            *data = Vec::new();
+                // complete handshake
+                while stream.session.is_handshaking() {
+                    futures::ready!(stream.handshake(cx))?;
+                }
+
+                // write early data (fallback)
+                if !stream.session.is_early_data_accepted() {
+                    while *pos < data.len() {
+                        let len = futures::ready!(stream.as_mut_pin().poll_write(cx, &data[*pos..]))?;
+                        *pos += len;
+                    }
+                }
+
+                this.state = TlsState::Stream;
+                let (_, data) = &mut this.early_data;
+                *data = Vec::new();
+            }
         }
 
         stream.as_mut_pin().poll_flush(cx)
@@ -186,14 +198,16 @@ where
             self.state.shutdown_write();
         }
 
+        #[cfg(feature = "early-data")] {
+            // we skip the handshake
+            if let TlsState::EarlyData = self.state {
+                return Pin::new(&mut self.io).poll_shutdown(cx);
+            }
+        }
+
         let this = self.get_mut();
         let mut stream = Stream::new(&mut this.io, &mut this.session)
             .set_eof(!this.state.readable());
-
-        // TODO
-        //
-        // should we complete the handshake?
-
         stream.as_mut_pin().poll_shutdown(cx)
     }
 }

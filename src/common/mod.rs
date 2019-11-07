@@ -240,7 +240,6 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
         while self.session.wants_write() {
             futures::ready!(self.write_io(cx))?;
         }
-
         Pin::new(&mut self.io).poll_shutdown(cx)
     }
 }

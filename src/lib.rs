@@ -127,7 +127,7 @@ impl TlsConnector {
 
         #[cfg(feature = "early-data")]
         {
-            Connect(if self.early_data {
+            Connect(if self.early_data && session.early_data().is_some() {
                 client::MidHandshake::EarlyData(client::TlsStream {
                     session,
                     io: stream,
