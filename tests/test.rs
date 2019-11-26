@@ -3,12 +3,12 @@ use std::io::{ BufReader, Cursor };
 use std::sync::Arc;
 use std::sync::mpsc::channel;
 use std::net::SocketAddr;
+use futures_util::future::TryFutureExt;
 use lazy_static::lazy_static;
 use tokio::prelude::*;
-use tokio::runtime::current_thread;
+use tokio::runtime;
 use tokio::net::{ TcpListener, TcpStream };
-use tokio::io::split;
-use futures_util::try_future::TryFutureExt;
+use tokio::io::{copy, split};
 use rustls::{ ServerConfig, ClientConfig };
 use rustls::internal::pemfile::{ certs, rsa_private_keys };
 use tokio_rustls::{ TlsConnector, TlsAcceptor };
@@ -30,32 +30,36 @@ lazy_static!{
         let (send, recv) = channel();
 
         thread::spawn(move || {
-            let mut runtime = current_thread::Runtime::new().unwrap();
-            let handle = runtime.handle();
+            let mut runtime = runtime::Builder::new()
+                .basic_scheduler()
+                .enable_io()
+                .build()
+                .unwrap();
+
+            let handle = runtime.handle().clone();
 
             let done = async move {
                 let addr = SocketAddr::from(([127, 0, 0, 1], 0));
-                let listener = TcpListener::bind(&addr).await?;
+                let mut listener = TcpListener::bind(&addr).await?;
 
                 send.send(listener.local_addr()?).unwrap();
 
-                let mut incoming = listener.incoming();
-                while let Some(stream) = incoming.next().await {
+                loop {
+                    let (stream, _) = listener.accept().await?;
+
                     let acceptor = acceptor.clone();
                     let fut = async move {
-                        let stream = acceptor.accept(stream?).await?;
+                        let stream = acceptor.accept(stream).await?;
 
                         let (mut reader, mut writer) = split(stream);
-                        reader.copy(&mut writer).await?;
+                        copy(&mut reader, &mut writer).await?;
 
                         Ok(()) as io::Result<()>
                     }.unwrap_or_else(|err| eprintln!("server: {:?}", err));
 
-                    handle.spawn(fut).unwrap();
+                    handle.spawn(fut);
                 }
-
-                Ok(()) as io::Result<()>
-            }.unwrap_or_else(|err| eprintln!("server: {:?}", err));
+            }.unwrap_or_else(|err: io::Error| eprintln!("server: {:?}", err));
 
             runtime.block_on(done);
         });
@@ -95,8 +99,7 @@ async fn pass() -> io::Result<()> {
     // TcpStream::bind now returns a future it creates a race
     // condition until its ready sometimes.
     use std::time::*;
-    let deadline = Instant::now() + Duration::from_secs(1);
-    tokio::timer::delay(deadline);
+    tokio::time::delay_for(Duration::from_secs(1)).await;
 
     let mut config = ClientConfig::new();
     let mut chain = BufReader::new(Cursor::new(chain));

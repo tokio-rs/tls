@@ -3,7 +3,7 @@ use std::task::{ Poll, Context };
 use std::marker::Unpin;
 use std::io::{ self, Read, Write };
 use rustls::Session;
-use tokio_io::{ AsyncRead, AsyncWrite };
+use tokio::io::{ AsyncRead, AsyncWrite };
 use futures_core as futures;
 
 

@@ -15,8 +15,8 @@ edition = "2018"
 github-actions = { repository = "quininer/tokio-rustls", workflow = "ci" }
 
 [dependencies]
-tokio-io = "=0.2.0-alpha.6"
-futures-core-preview = "=0.3.0-alpha.19"
+tokio = "0.2.0"
+futures-core = "0.3.1"
 rustls = "0.16"
 webpki = "0.21"
 
@@ -25,7 +25,7 @@ early-data = []
 dangerous_configuration = ["rustls/dangerous_configuration"]
 
 [dev-dependencies]
-tokio = "=0.2.0-alpha.6"
-futures-util-preview = "0.3.0-alpha.19"
+tokio = { version = "0.2.0", features = ["macros", "net", "io-util", "rt-core", "time"] }
+futures-util = "0.3.1"
 lazy_static = "1"
 webpki-roots = "0.18"

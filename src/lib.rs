@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::future::Future;
 use std::task::{ Context, Poll };
 use futures_core as futures;
-use tokio_io::{ AsyncRead, AsyncWrite };
+use tokio::io::{ AsyncRead, AsyncWrite };
 use webpki::DNSNameRef;
 use rustls::{ ClientConfig, ClientSession, ServerConfig, ServerSession, Session };
 use common::Stream;

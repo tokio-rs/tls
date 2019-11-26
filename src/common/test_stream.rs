@@ -4,7 +4,7 @@ use std::task::{ Poll, Context };
 use futures_core::ready;
 use futures_util::future::poll_fn;
 use futures_util::task::noop_waker_ref;
-use tokio_io::{ AsyncRead, AsyncWrite, AsyncReadExt, AsyncWriteExt };
+use tokio::io::{ AsyncRead, AsyncWrite, AsyncReadExt, AsyncWriteExt };
 use std::io::{ self, Read, Write, BufReader, Cursor };
 use webpki::DNSNameRef;
 use rustls::internal::pemfile::{ certs, rsa_private_keys };
