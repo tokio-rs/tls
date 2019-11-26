@@ -10,10 +10,11 @@ use std::task::{ Context, Poll };
 use std::time::Duration;
 use tokio::prelude::*;
 use tokio::net::TcpStream;
-use tokio::timer::delay_for;
+use tokio::time::delay_for;
 use futures_util::{ future, ready };
 use rustls::ClientConfig;
 use tokio_rustls::{ TlsConnector, client::TlsStream };
+use std::future::Future;
 
 
 struct Read1<T>(T);
