@@ -22,8 +22,8 @@ config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
 let config = TlsConnector::from(Arc::new(config));
 let dnsname = DNSNameRef::try_from_ascii_str("www.rust-lang.org").unwrap();
 
-TcpStream::connect(&addr)
-	.and_then(move |socket| config.connect(dnsname, socket))
+let stream = TcpStream::connect(&addr).await?;
+let mut stream = config.connect(dnsname, stream).await?;
 
 // ...
 ```

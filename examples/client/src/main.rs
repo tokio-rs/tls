@@ -1,16 +1,14 @@
-#![feature(async_await)]
-
 use std::io;
 use std::fs::File;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::net::ToSocketAddrs;
 use std::io::BufReader;
+use futures_util::future;
 use structopt::StructOpt;
-use romio::TcpStream;
-use futures::prelude::*;
-use futures::executor;
-use futures::compat::{ AsyncRead01CompatExt, AsyncWrite01CompatExt };
+use tokio::runtime;
+use tokio::net::TcpStream;
+use tokio::io::{ AsyncWriteExt, copy, split };
 use tokio_rustls::{ TlsConnector, rustls::ClientConfig, webpki::DNSNameRef };
 use tokio_stdin_stdout::{ stdin as tokio_stdin, stdout as tokio_stdout };
 
@@ -46,6 +44,10 @@ fn main() -> io::Result<()> {
         domain
     );
 
+    let mut runtime = runtime::Builder::new()
+        .basic_scheduler()
+        .enable_io()
+        .build()?;
     let mut config = ClientConfig::new();
     if let Some(cafile) = &options.cafile {
         let mut pem = BufReader::new(File::open(cafile)?);
@@ -58,6 +60,8 @@ fn main() -> io::Result<()> {
 
     let fut = async {
         let stream = TcpStream::connect(&addr).await?;
+
+        // TODO tokio-compat
         let (mut stdin, mut stdout) = (tokio_stdin(0).compat(), tokio_stdout(0).compat());
 
         let domain = DNSNameRef::try_from_ascii_str(&domain)
@@ -66,14 +70,14 @@ fn main() -> io::Result<()> {
         let mut stream = connector.connect(domain, stream).await?;
         stream.write_all(content.as_bytes()).await?;
 
-        let (mut reader, mut writer) = stream.split();
+        let (mut reader, mut writer) = split(stream);
         future::try_join(
-            reader.copy_into(&mut stdout),
-            stdin.copy_into(&mut writer)
+            copy(&mut reader, &mut stdout),
+            copy(&mut stdin, &mut writer)
         ).await?;
 
         Ok(())
     };
 
-    executor::block_on(fut)
+    runtime.block_on(fut)
 }

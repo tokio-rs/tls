@@ -1,15 +1,13 @@
-#![feature(async_await)]
-
 use std::fs::File;
 use std::sync::Arc;
 use std::net::ToSocketAddrs;
 use std::path::{ PathBuf, Path };
 use std::io::{ self, BufReader };
+use futures_util::future::TryFutureExt;
 use structopt::StructOpt;
-use futures::task::SpawnExt;
-use futures::prelude::*;
-use futures::executor;
-use romio::TcpListener;
+use tokio::runtime;
+use tokio::net::TcpListener;
+use tokio::io::{ AsyncWriteExt, copy, split };
 use tokio_rustls::rustls::{ Certificate, NoClientAuth, PrivateKey, ServerConfig };
 use tokio_rustls::rustls::internal::pemfile::{ certs, rsa_private_keys };
 use tokio_rustls::TlsAcceptor;
@@ -53,27 +51,30 @@ fn main() -> io::Result<()> {
     let mut keys = load_keys(&options.key)?;
     let flag_echo = options.echo;
 
-    let mut pool = executor::ThreadPool::new()?;
+    let mut runtime = runtime::Builder::new()
+        .threaded_scheduler()
+        .enable_io()
+        .build()?;
+    let handle = runtime.handle().clone();
     let mut config = ServerConfig::new(NoClientAuth::new());
     config.set_single_cert(certs, keys.remove(0))
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
     let acceptor = TlsAcceptor::from(Arc::new(config));
 
     let fut = async {
-        let mut listener = TcpListener::bind(&addr)?;
-        let mut incoming = listener.incoming();
+        let mut listener = TcpListener::bind(&addr).await?;
 
-        while let Some(stream) = incoming.next().await {
+        loop {
+            let (stream, peer_addr) = listener.accept().await?;
             let acceptor = acceptor.clone();
 
             let fut = async move {
-                let stream = stream?;
-                let peer_addr = stream.peer_addr()?;
                 let mut stream = acceptor.accept(stream).await?;
 
                 if flag_echo {
-                    let (mut reader, mut writer) = stream.split();
-                    let n = reader.copy_into(&mut writer).await?;
+                    let (mut reader, mut writer) = split(stream);
+                    let n = copy(&mut reader, &mut writer).await?;
+                    writer.flush().await?;
                     println!("Echo: {} - {}", peer_addr, n);
                 } else {
                     stream.write_all(
@@ -90,11 +91,9 @@ fn main() -> io::Result<()> {
                 Ok(()) as io::Result<()>
             };
 
-            pool.spawn(fut.unwrap_or_else(|err| eprintln!("{:?}", err))).unwrap();
+            handle.spawn(fut.unwrap_or_else(|err| eprintln!("{:?}", err)));
         }
-
-        Ok(())
     };
 
-    executor::block_on(fut)
+    runtime.block_on(fut)
 }

@@ -5,7 +5,7 @@ authors = ["quininer <quininer@live.com>"]
 edition = "2018"
 
 [dependencies]
-futures = { package = "futures-preview", version = "0.3.0-alpha.16" }
-romio = "0.3.0-alpha.8"
+futures-util = "0.3"
+tokio = { version = "0.2", features = [ "net", "io-util", "rt-threaded" ] }
 structopt = "0.2"
 tokio-rustls = { path = "../.." }
