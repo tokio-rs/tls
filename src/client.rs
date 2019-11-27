@@ -128,8 +128,8 @@ where
                             return Poll::Pending,
                         Err(err) => return Poll::Ready(Err(err))
                     };
-                    data.extend_from_slice(&buf[..len]);
                     if len != 0 {
+                        data.extend_from_slice(&buf[..len]);
                         return Poll::Ready(Ok(len));
                     }
                 }
