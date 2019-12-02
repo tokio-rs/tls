@@ -8,9 +8,12 @@ use futures_util::future;
 use structopt::StructOpt;
 use tokio::runtime;
 use tokio::net::TcpStream;
-use tokio::io::{ AsyncWriteExt, copy, split };
+use tokio::io::{
+    AsyncWriteExt,
+    copy, split,
+    stdin as tokio_stdin, stdout as tokio_stdout
+};
 use tokio_rustls::{ TlsConnector, rustls::ClientConfig, webpki::DNSNameRef };
-use tokio_stdin_stdout::{ stdin as tokio_stdin, stdout as tokio_stdout };
 
 
 #[derive(StructOpt)]
@@ -61,8 +64,7 @@ fn main() -> io::Result<()> {
     let fut = async {
         let stream = TcpStream::connect(&addr).await?;
 
-        // TODO tokio-compat
-        let (mut stdin, mut stdout) = (tokio_stdin(0).compat(), tokio_stdout(0).compat());
+        let (mut stdin, mut stdout) = (tokio_stdin(), tokio_stdout());
 
         let domain = DNSNameRef::try_from_ascii_str(&domain)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid dnsname"))?;
@@ -71,10 +73,13 @@ fn main() -> io::Result<()> {
         stream.write_all(content.as_bytes()).await?;
 
         let (mut reader, mut writer) = split(stream);
-        future::try_join(
+        future::select(
             copy(&mut reader, &mut stdout),
             copy(&mut stdin, &mut writer)
-        ).await?;
+        )
+            .await
+            .factor_first()
+            .0?;
 
         Ok(())
     };
