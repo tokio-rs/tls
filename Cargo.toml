@@ -12,7 +12,7 @@ categories = ["asynchronous", "cryptography", "network-programming"]
 edition = "2018"
 
 [badges]
-github-actions = { repository = "quininer/tokio-rustls", workflow = "ci" }
+github-actions = { repository = "quininer/tokio-rustls", workflow = "Rust" }
 
 [dependencies]
 bytes = "0.5"

@@ -1,5 +1,5 @@
 # tokio-rustls
-[![github actions](https://github.com/quininer/tokio-rustls/workflows/ci/badge.svg)](https://github.com/quininer/tokio-rustls/actions)
+[![github actions](https://github.com/quininer/tokio-rustls/workflows/Rust/badge.svg)](https://github.com/quininer/tokio-rustls/actions)
 [![codecov](https://codecov.io/gh/quininer/tokio-rustls/branch/master/graph/badge.svg)](https://codecov.io/gh/quininer/tokio-rustls)
 [![crates](https://img.shields.io/crates/v/tokio-rustls.svg)](https://crates.io/crates/tokio-rustls)
 [![license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/quininer/tokio-rustls/blob/master/LICENSE-MIT)

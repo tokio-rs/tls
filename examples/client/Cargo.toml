@@ -10,4 +10,3 @@ tokio = { version = "0.2", features = [ "net", "io-std", "io-util", "rt-threaded
 structopt = "0.2"
 tokio-rustls = { path = "../.." }
 webpki-roots = "0.18"
-tokio-stdin-stdout = "0.1"
