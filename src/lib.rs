@@ -13,63 +13,10 @@ use futures_core as futures;
 use tokio::io::{ AsyncRead, AsyncWrite };
 use webpki::DNSNameRef;
 use rustls::{ ClientConfig, ClientSession, ServerConfig, ServerSession, Session };
-use common::Stream;
+use common::{ Stream, TlsState };
 
 pub use rustls;
 pub use webpki;
-
-#[derive(Debug)]
-enum TlsState {
-    #[cfg(feature = "early-data")]
-    EarlyData(usize, Vec<u8>),
-    Stream,
-    ReadShutdown,
-    WriteShutdown,
-    FullyShutdown,
-}
-
-impl TlsState {
-    fn shutdown_read(&mut self) {
-        match *self {
-            TlsState::WriteShutdown | TlsState::FullyShutdown => *self = TlsState::FullyShutdown,
-            _ => *self = TlsState::ReadShutdown,
-        }
-    }
-
-    fn shutdown_write(&mut self) {
-        match *self {
-            TlsState::ReadShutdown | TlsState::FullyShutdown => *self = TlsState::FullyShutdown,
-            _ => *self = TlsState::WriteShutdown,
-        }
-    }
-
-    fn writeable(&self) -> bool {
-        match *self {
-            TlsState::WriteShutdown | TlsState::FullyShutdown => false,
-            _ => true,
-        }
-    }
-
-    fn readable(&self) -> bool {
-        match self {
-            TlsState::ReadShutdown | TlsState::FullyShutdown => false,
-            _ => true,
-        }
-    }
-
-    #[cfg(feature = "early-data")]
-    fn is_early_data(&self) -> bool {
-        match self {
-            TlsState::EarlyData(..) => true,
-            _ => false
-        }
-    }
-
-    #[cfg(not(feature = "early-data"))]
-    const fn is_early_data(&self) -> bool {
-        false
-    }
-}
 
 /// A wrapper around a `rustls::ClientConfig`, providing an async `connect` method.
 #[derive(Clone)]

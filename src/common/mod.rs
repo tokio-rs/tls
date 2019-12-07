@@ -7,6 +7,59 @@ use tokio::io::{ AsyncRead, AsyncWrite };
 use futures_core as futures;
 
 
+#[derive(Debug)]
+pub enum TlsState {
+    #[cfg(feature = "early-data")]
+    EarlyData(usize, Vec<u8>),
+    Stream,
+    ReadShutdown,
+    WriteShutdown,
+    FullyShutdown,
+}
+
+impl TlsState {
+    pub fn shutdown_read(&mut self) {
+        match *self {
+            TlsState::WriteShutdown | TlsState::FullyShutdown => *self = TlsState::FullyShutdown,
+            _ => *self = TlsState::ReadShutdown,
+        }
+    }
+
+    pub fn shutdown_write(&mut self) {
+        match *self {
+            TlsState::ReadShutdown | TlsState::FullyShutdown => *self = TlsState::FullyShutdown,
+            _ => *self = TlsState::WriteShutdown,
+        }
+    }
+
+    pub fn writeable(&self) -> bool {
+        match *self {
+            TlsState::WriteShutdown | TlsState::FullyShutdown => false,
+            _ => true,
+        }
+    }
+
+    pub fn readable(&self) -> bool {
+        match self {
+            TlsState::ReadShutdown | TlsState::FullyShutdown => false,
+            _ => true,
+        }
+    }
+
+    #[cfg(feature = "early-data")]
+    pub fn is_early_data(&self) -> bool {
+        match self {
+            TlsState::EarlyData(..) => true,
+            _ => false
+        }
+    }
+
+    #[cfg(not(feature = "early-data"))]
+    pub const fn is_early_data(&self) -> bool {
+        false
+    }
+}
+
 pub struct Stream<'a, IO, S> {
     pub io: &'a mut IO,
     pub session: &'a mut S,
