@@ -67,8 +67,12 @@ impl<IO> AsyncRead for TlsStream<IO>
 where
     IO: AsyncRead + AsyncWrite + Unpin,
 {
+    #[cfg(feature = "unstable")]
     unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [std::mem::MaybeUninit<u8>]) -> bool {
-        self.io.prepare_uninitialized_buffer(buf)
+        // TODO
+        //
+        // https://doc.rust-lang.org/nightly/std/io/trait.Read.html#method.initializer
+        false
     }
 
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {

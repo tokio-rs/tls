@@ -24,6 +24,7 @@ webpki = "0.21"
 [features]
 early-data = []
 dangerous_configuration = ["rustls/dangerous_configuration"]
+unstable = []
 
 [dev-dependencies]
 tokio = { version = "0.2.0", features = ["macros", "net", "io-util", "rt-core", "time"] }
