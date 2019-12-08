@@ -1,10 +1,12 @@
+mod handshake;
+
 use std::pin::Pin;
 use std::task::{ Poll, Context };
-use std::marker::Unpin;
 use std::io::{ self, Read, Write };
 use rustls::Session;
 use tokio::io::{ AsyncRead, AsyncWrite };
 use futures_core as futures;
+pub(crate) use handshake::{ IoSession, MidHandshake };
 
 
 #[derive(Debug)]
@@ -18,6 +20,7 @@ pub enum TlsState {
 }
 
 impl TlsState {
+    #[inline]
     pub fn shutdown_read(&mut self) {
         match *self {
             TlsState::WriteShutdown | TlsState::FullyShutdown => *self = TlsState::FullyShutdown,
@@ -25,6 +28,7 @@ impl TlsState {
         }
     }
 
+    #[inline]
     pub fn shutdown_write(&mut self) {
         match *self {
             TlsState::ReadShutdown | TlsState::FullyShutdown => *self = TlsState::FullyShutdown,
@@ -32,6 +36,7 @@ impl TlsState {
         }
     }
 
+    #[inline]
     pub fn writeable(&self) -> bool {
         match *self {
             TlsState::WriteShutdown | TlsState::FullyShutdown => false,
@@ -39,6 +44,7 @@ impl TlsState {
         }
     }
 
+    #[inline]
     pub fn readable(&self) -> bool {
         match self {
             TlsState::ReadShutdown | TlsState::FullyShutdown => false,
@@ -46,6 +52,7 @@ impl TlsState {
         }
     }
 
+    #[inline]
     #[cfg(feature = "early-data")]
     pub fn is_early_data(&self) -> bool {
         match self {
@@ -54,6 +61,7 @@ impl TlsState {
         }
     }
 
+    #[inline]
     #[cfg(not(feature = "early-data"))]
     pub const fn is_early_data(&self) -> bool {
         false

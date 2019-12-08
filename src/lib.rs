@@ -4,16 +4,16 @@ mod common;
 pub mod client;
 pub mod server;
 
-use std::{ io, mem };
+use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::future::Future;
 use std::task::{ Context, Poll };
-use futures_core as futures;
+use futures_core::future::FusedFuture;
 use tokio::io::{ AsyncRead, AsyncWrite };
 use webpki::DNSNameRef;
 use rustls::{ ClientConfig, ClientSession, ServerConfig, ServerSession, Session };
-use common::{ Stream, TlsState };
+use common::{ Stream, TlsState, MidHandshake };
 
 pub use rustls;
 pub use webpki;
@@ -75,7 +75,7 @@ impl TlsConnector {
         let mut session = ClientSession::new(&self.inner, domain);
         f(&mut session);
 
-        Connect(client::MidHandshake::Handshaking(client::TlsStream {
+        Connect(MidHandshake::Handshaking(client::TlsStream {
             io: stream,
 
             #[cfg(not(feature = "early-data"))]
@@ -110,7 +110,7 @@ impl TlsAcceptor {
         let mut session = ServerSession::new(&self.inner);
         f(&mut session);
 
-        Accept(server::MidHandshake::Handshaking(server::TlsStream {
+        Accept(MidHandshake::Handshaking(server::TlsStream {
             session,
             io: stream,
             state: TlsState::Stream,
@@ -120,18 +120,46 @@ impl TlsAcceptor {
 
 /// Future returned from `TlsConnector::connect` which will resolve
 /// once the connection handshake has finished.
-pub struct Connect<IO>(client::MidHandshake<IO>);
+pub struct Connect<IO>(MidHandshake<client::TlsStream<IO>>);
 
 /// Future returned from `TlsAcceptor::accept` which will resolve
 /// once the accept handshake has finished.
-pub struct Accept<IO>(server::MidHandshake<IO>);
+pub struct Accept<IO>(MidHandshake<server::TlsStream<IO>>);
+
+/// Like [Connect], but returns `IO` on failure.
+pub struct FailableConnect<IO>(MidHandshake<client::TlsStream<IO>>);
+
+/// Like [Accept], but returns `IO` on failure.
+pub struct FailableAccept<IO>(MidHandshake<server::TlsStream<IO>>);
+
+impl<IO> Connect<IO> {
+    #[inline]
+    pub fn into_failable(self) -> FailableConnect<IO> {
+        FailableConnect(self.0)
+    }
+}
+
+impl<IO> Accept<IO> {
+    #[inline]
+    pub fn into_failable(self) -> FailableAccept<IO> {
+        FailableAccept(self.0)
+    }
+}
 
 impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Connect<IO> {
     type Output = io::Result<client::TlsStream<IO>>;
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.0).poll(cx)
+        Pin::new(&mut self.0)
+            .poll(cx)
+            .map_err(|(err, _)| err)
+    }
+}
+
+impl<IO: AsyncRead + AsyncWrite + Unpin> FusedFuture for Connect<IO> {
+    fn is_terminated(&self) -> bool {
+        self.0.is_terminated()
     }
 }
 
@@ -140,7 +168,48 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Accept<IO> {
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0)
+            .poll(cx)
+            .map_err(|(err, _)| err)
+    }
+}
+
+impl<IO: AsyncRead + AsyncWrite + Unpin> FusedFuture for Accept<IO> {
+    #[inline]
+    fn is_terminated(&self) -> bool {
+        self.0.is_terminated()
+    }
+}
+
+impl<IO: AsyncRead + AsyncWrite + Unpin> Future for FailableConnect<IO> {
+    type Output = Result<client::TlsStream<IO>, (io::Error, IO)>;
+
+    #[inline]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.0).poll(cx)
+    }
+}
+
+impl<IO: AsyncRead + AsyncWrite + Unpin> FusedFuture for FailableConnect<IO> {
+    #[inline]
+    fn is_terminated(&self) -> bool {
+        self.0.is_terminated()
+    }
+}
+
+impl<IO: AsyncRead + AsyncWrite + Unpin> Future for FailableAccept<IO> {
+    type Output = Result<server::TlsStream<IO>, (io::Error, IO)>;
+
+    #[inline]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0).poll(cx)
+    }
+}
+
+impl<IO: AsyncRead + AsyncWrite + Unpin> FusedFuture for FailableAccept<IO> {
+    #[inline]
+    fn is_terminated(&self) -> bool {
+        self.0.is_terminated()
     }
 }
 

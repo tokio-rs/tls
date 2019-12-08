@@ -1,5 +1,6 @@
 use super::*;
 use rustls::Session;
+use crate::common::IoSession;
 
 /// A wrapper around an underlying raw stream which implements the TLS or SSL
 /// protocol.
@@ -8,11 +9,6 @@ pub struct TlsStream<IO> {
     pub(crate) io: IO,
     pub(crate) session: ServerSession,
     pub(crate) state: TlsState,
-}
-
-pub(crate) enum MidHandshake<IO> {
-    Handshaking(TlsStream<IO>),
-    End,
 }
 
 impl<IO> TlsStream<IO> {
@@ -32,34 +28,23 @@ impl<IO> TlsStream<IO> {
     }
 }
 
-impl<IO> Future for MidHandshake<IO>
-where
-    IO: AsyncRead + AsyncWrite + Unpin,
-{
-    type Output = io::Result<TlsStream<IO>>;
+impl<IO> IoSession for TlsStream<IO> {
+    type Io = IO;
+    type Session = ServerSession;
 
     #[inline]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
+    fn skip_handshake(&self) -> bool {
+        false
+    }
 
-        if let MidHandshake::Handshaking(stream) = this {
-            let eof = !stream.state.readable();
-            let (io, session) = stream.get_mut();
-            let mut stream = Stream::new(io, session).set_eof(eof);
+    #[inline]
+    fn get_mut(&mut self) -> (&mut TlsState, &mut Self::Io, &mut Self::Session) {
+        (&mut self.state, &mut self.io, &mut self.session)
+    }
 
-            while stream.session.is_handshaking() {
-                futures::ready!(stream.handshake(cx))?;
-            }
-
-            while stream.session.wants_write() {
-                futures::ready!(stream.write_io(cx))?;
-            }
-        }
-
-        match mem::replace(this, MidHandshake::End) {
-            MidHandshake::Handshaking(stream) => Poll::Ready(Ok(stream)),
-            MidHandshake::End => panic!(),
-        }
+    #[inline]
+    fn into_io(self) -> Self::Io {
+        self.io
     }
 }
 

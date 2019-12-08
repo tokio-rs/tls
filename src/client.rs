@@ -1,5 +1,7 @@
 use super::*;
 use rustls::Session;
+use crate::common::IoSession;
+
 
 /// A wrapper around an underlying raw stream which implements the TLS or SSL
 /// protocol.
@@ -8,11 +10,6 @@ pub struct TlsStream<IO> {
     pub(crate) io: IO,
     pub(crate) session: ClientSession,
     pub(crate) state: TlsState,
-}
-
-pub(crate) enum MidHandshake<IO> {
-    Handshaking(TlsStream<IO>),
-    End,
 }
 
 impl<IO> TlsStream<IO> {
@@ -32,36 +29,23 @@ impl<IO> TlsStream<IO> {
     }
 }
 
-impl<IO> Future for MidHandshake<IO>
-where
-    IO: AsyncRead + AsyncWrite + Unpin,
-{
-    type Output = io::Result<TlsStream<IO>>;
+impl<IO> IoSession for TlsStream<IO> {
+    type Io = IO;
+    type Session = ClientSession;
 
     #[inline]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
+    fn skip_handshake(&self) -> bool {
+        self.state.is_early_data()
+    }
 
-        if let MidHandshake::Handshaking(stream) = this {
-            if !stream.state.is_early_data() {
-                let eof = !stream.state.readable();
-                let (io, session) = stream.get_mut();
-                let mut stream = Stream::new(io, session).set_eof(eof);
+    #[inline]
+    fn get_mut(&mut self) -> (&mut TlsState, &mut Self::Io, &mut Self::Session) {
+        (&mut self.state, &mut self.io, &mut self.session)
+    }
 
-                while stream.session.is_handshaking() {
-                    futures::ready!(stream.handshake(cx))?;
-                }
-
-                while stream.session.wants_write() {
-                    futures::ready!(stream.write_io(cx))?;
-                }
-            }
-        }
-
-        match mem::replace(this, MidHandshake::End) {
-            MidHandshake::Handshaking(stream) => Poll::Ready(Ok(stream)),
-            MidHandshake::End => panic!(),
-        }
+    #[inline]
+    fn into_io(self) -> Self::Io {
+        self.io
     }
 }
 
@@ -119,6 +103,7 @@ where
         match this.state {
             #[cfg(feature = "early-data")]
             TlsState::EarlyData(ref mut pos, ref mut data) => {
+                use futures_core::ready;
                 use std::io::Write;
 
                 // write early data
@@ -137,13 +122,13 @@ where
 
                 // complete handshake
                 while stream.session.is_handshaking() {
-                    futures::ready!(stream.handshake(cx))?;
+                    ready!(stream.handshake(cx))?;
                 }
 
                 // write early data (fallback)
                 if !stream.session.is_early_data_accepted() {
                     while *pos < data.len() {
-                        let len = futures::ready!(stream.as_mut_pin().poll_write(cx, &data[*pos..]))?;
+                        let len = ready!(stream.as_mut_pin().poll_write(cx, &data[*pos..]))?;
                         *pos += len;
                     }
                 }
@@ -162,16 +147,18 @@ where
             .set_eof(!this.state.readable());
 
         #[cfg(feature = "early-data")] {
+            use futures_core::ready;
+
             if let TlsState::EarlyData(ref mut pos, ref mut data) = this.state {
                 // complete handshake
                 while stream.session.is_handshaking() {
-                    futures::ready!(stream.handshake(cx))?;
+                    ready!(stream.handshake(cx))?;
                 }
 
                 // write early data (fallback)
                 if !stream.session.is_early_data_accepted() {
                     while *pos < data.len() {
-                        let len = futures::ready!(stream.as_mut_pin().poll_write(cx, &data[*pos..]))?;
+                        let len = ready!(stream.as_mut_pin().poll_write(cx, &data[*pos..]))?;
                         *pos += len;
                     }
                 }
