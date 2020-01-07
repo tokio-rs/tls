@@ -1,8 +1,11 @@
 mod handshake;
 
+#[cfg(feature = "unstable")]
+mod vecbuf;
+
 use std::pin::Pin;
 use std::task::{ Poll, Context };
-use std::io::{ self, Read, Write };
+use std::io::{ self, Read };
 use rustls::Session;
 use tokio::io::{ AsyncRead, AsyncWrite };
 use futures_core as futures;
@@ -23,7 +26,8 @@ impl TlsState {
     #[inline]
     pub fn shutdown_read(&mut self) {
         match *self {
-            TlsState::WriteShutdown | TlsState::FullyShutdown => *self = TlsState::FullyShutdown,
+            TlsState::WriteShutdown | TlsState::FullyShutdown =>
+                *self = TlsState::FullyShutdown,
             _ => *self = TlsState::ReadShutdown,
         }
     }
@@ -31,7 +35,8 @@ impl TlsState {
     #[inline]
     pub fn shutdown_write(&mut self) {
         match *self {
-            TlsState::ReadShutdown | TlsState::FullyShutdown => *self = TlsState::FullyShutdown,
+            TlsState::ReadShutdown | TlsState::FullyShutdown =>
+                *self = TlsState::FullyShutdown,
             _ => *self = TlsState::WriteShutdown,
         }
     }
@@ -132,7 +137,10 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
         Poll::Ready(Ok(n))
     }
 
+    #[cfg(not(feature = "unstable"))]
     pub fn write_io(&mut self, cx: &mut Context) -> Poll<io::Result<usize>> {
+        use std::io::Write;
+
         struct Writer<'a, 'b, T> {
             io: &'a mut T,
             cx: &'a mut Context<'b>
@@ -157,6 +165,36 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
         let mut writer = Writer { io: self.io, cx };
 
         match self.session.write_tls(&mut writer) {
+            Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Pending,
+            result => Poll::Ready(result)
+        }
+    }
+
+    #[cfg(feature = "unstable")]
+    pub fn write_io(&mut self, cx: &mut Context) -> Poll<io::Result<usize>> {
+        use rustls::WriteV;
+
+        struct Writer<'a, 'b, T> {
+            io: &'a mut T,
+            cx: &'a mut Context<'b>
+        }
+
+        impl<'a, 'b, T: AsyncWrite + Unpin> WriteV for Writer<'a, 'b, T> {
+            fn writev(&mut self, vbuf: &[&[u8]]) -> io::Result<usize> {
+                use vecbuf::VecBuf;
+
+                let mut vbuf = VecBuf::new(vbuf);
+
+                match Pin::new(&mut self.io).poll_write_buf(self.cx, &mut vbuf) {
+                    Poll::Ready(result) => result,
+                    Poll::Pending => Err(io::ErrorKind::WouldBlock.into())
+                }
+            }
+        }
+
+        let mut writer = Writer { io: self.io, cx };
+
+        match self.session.writev_tls(&mut writer) {
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Pending,
             result => Poll::Ready(result)
         }

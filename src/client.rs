@@ -54,7 +54,7 @@ where
     IO: AsyncRead + AsyncWrite + Unpin,
 {
     #[cfg(feature = "unstable")]
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [std::mem::MaybeUninit<u8>]) -> bool {
+    unsafe fn prepare_uninitialized_buffer(&self, _buf: &mut [std::mem::MaybeUninit<u8>]) -> bool {
         false
     }
 

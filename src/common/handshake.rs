@@ -78,7 +78,7 @@ where
 
             Poll::Ready(Ok(stream))
         } else {
-            panic!()
+            panic!("unexpected polling after handshake")
         }
     }
 }

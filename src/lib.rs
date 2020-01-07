@@ -51,8 +51,8 @@ impl From<Arc<ServerConfig>> for TlsAcceptor {
 impl TlsConnector {
     /// Enable 0-RTT.
     ///
-    /// Note that you want to use 0-RTT.
-    /// You must set `enable_early_data` to `true` in `ClientConfig`.
+    /// If you want to use 0-RTT,
+    /// You must also set `ClientConfig.enable_early_data` to `true`.
     #[cfg(feature = "early-data")]
     pub fn early_data(mut self, flag: bool) -> TlsConnector {
         self.early_data = flag;
@@ -158,6 +158,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Connect<IO> {
 }
 
 impl<IO: AsyncRead + AsyncWrite + Unpin> FusedFuture for Connect<IO> {
+    #[inline]
     fn is_terminated(&self) -> bool {
         self.0.is_terminated()
     }
