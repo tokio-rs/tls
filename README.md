@@ -31,6 +31,8 @@ project.
 In addition to the crates in this repository, the Tokio project also maintains
 several other libraries, including:
 
+* [`tokio`]: A runtime for writing reliable, asynchronous, and slim applications with the Rust programming language.
+
 * [`tracing`] (formerly `tokio-trace`): A framework for application-level
   tracing and async-aware diagnostics.
 
