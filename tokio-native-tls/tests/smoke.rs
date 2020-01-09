@@ -246,7 +246,7 @@ cfg_if! {
         use std::fs::File;
         use std::sync::Once;
 
-        fn contexts() -> (tokio_tls::TlsAcceptor, tokio_tls::TlsConnector) {
+        fn contexts() -> (tokio_native_tls::TlsAcceptor, tokio_native_tls::TlsConnector) {
             let keys = openssl_keys();
 
             let pkcs12 = t!(Identity::from_pkcs12(&keys.pkcs12_der, "foobar"));
@@ -281,7 +281,7 @@ cfg_if! {
 
         const FRIENDLY_NAME: &'static str = "tokio-tls localhost testing cert";
 
-        fn contexts() -> (tokio_tls::TlsAcceptor, tokio_tls::TlsConnector) {
+        fn contexts() -> (tokio_native_tls::TlsAcceptor, tokio_native_tls::TlsConnector) {
             let cert = localhost_cert();
             let mut store = t!(Memory::new()).into_store();
             t!(store.add_cert(&cert, CertAdd::Always));
@@ -396,7 +396,7 @@ description should mention "tokio-tls".
 
                 // start creating the certificate
                 let name = "CN=localhost,O=tokio-tls,OU=tokio-tls,\
-                            G=tokio_tls".encode_utf16()
+                            G=tokio_native_tls".encode_utf16()
                                           .chain(Some(0))
                                           .collect::<Vec<_>>();
                 let mut cname_buffer: [WCHAR; UNLEN as usize + 1] = mem::zeroed();
