@@ -1,9 +1,8 @@
 # tokio-rustls
-[![github actions](https://github.com/quininer/tokio-rustls/workflows/Rust/badge.svg)](https://github.com/quininer/tokio-rustls/actions)
-[![codecov](https://codecov.io/gh/quininer/tokio-rustls/branch/master/graph/badge.svg)](https://codecov.io/gh/quininer/tokio-rustls)
+[![github actions](https://github.com/tokio-rs/tls/workflows/Rust/badge.svg)](https://github.com/tokio-rs/tls/actions)
 [![crates](https://img.shields.io/crates/v/tokio-rustls.svg)](https://crates.io/crates/tokio-rustls)
-[![license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/quininer/tokio-rustls/blob/master/LICENSE-MIT)
-[![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/quininer/tokio-rustls/blob/master/LICENSE-APACHE)
+[![license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/tokio-rs/tls/blob/master/tokio-rustls/LICENSE-MIT)
+[![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/tokio-rs/tls/blob/master/tokio-rustls/LICENSE-APACHE)
 [![docs.rs](https://docs.rs/tokio-rustls/badge.svg)](https://docs.rs/tokio-rustls/)
 
 Asynchronous TLS/SSL streams for [Tokio](https://tokio.rs/) using
