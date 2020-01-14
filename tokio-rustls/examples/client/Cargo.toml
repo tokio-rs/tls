@@ -1,0 +1,12 @@
+[package]
+name = "client"
+version = "0.1.0"
+authors = ["quininer <quininer@live.com>"]
+edition = "2018"
+
+[dependencies]
+futures-util = "0.3"
+tokio = { version = "0.2", features = [ "net", "io-std", "io-util", "rt-threaded" ] }
+structopt = "0.2"
+tokio-rustls = { path = "../.." }
+webpki-roots = "0.18"
