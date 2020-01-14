@@ -1,12 +1,11 @@
-use std::{ io, mem };
-use std::pin::Pin;
-use std::future::Future;
-use std::task::{ Context, Poll };
+use crate::common::{Stream, TlsState};
 use futures_core::future::FusedFuture;
-use tokio::io::{ AsyncRead, AsyncWrite };
 use rustls::Session;
-use crate::common::{ TlsState, Stream };
-
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::{io, mem};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 pub(crate) trait IoSession {
     type Io;
@@ -26,7 +25,7 @@ impl<IS> FusedFuture for MidHandshake<IS>
 where
     IS: IoSession + Unpin,
     IS::Io: AsyncRead + AsyncWrite + Unpin,
-    IS::Session: Session + Unpin
+    IS::Session: Session + Unpin,
 {
     fn is_terminated(&self) -> bool {
         if let MidHandshake::End = self {
@@ -41,7 +40,7 @@ impl<IS> Future for MidHandshake<IS>
 where
     IS: IoSession + Unpin,
     IS::Io: AsyncRead + AsyncWrite + Unpin,
-    IS::Session: Session + Unpin
+    IS::Session: Session + Unpin,
 {
     type Output = Result<IS, (io::Error, IS::Io)>;
 
@@ -51,20 +50,21 @@ where
         if let MidHandshake::Handshaking(mut stream) = mem::replace(this, MidHandshake::End) {
             if !stream.skip_handshake() {
                 let (state, io, session) = stream.get_mut();
-                let mut tls_stream = Stream::new(io, session)
-                    .set_eof(!state.readable());
+                let mut tls_stream = Stream::new(io, session).set_eof(!state.readable());
 
                 macro_rules! try_poll {
                     ( $e:expr ) => {
                         match $e {
                             Poll::Ready(Ok(_)) => (),
-                            Poll::Ready(Err(err)) => return Poll::Ready(Err((err, stream.into_io()))),
+                            Poll::Ready(Err(err)) => {
+                                return Poll::Ready(Err((err, stream.into_io())))
+                            }
                             Poll::Pending => {
                                 *this = MidHandshake::Handshaking(stream);
                                 return Poll::Pending;
                             }
                         }
-                    }
+                    };
                 }
 
                 while tls_stream.session.is_handshaking() {

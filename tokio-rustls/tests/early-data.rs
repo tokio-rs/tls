@@ -1,21 +1,20 @@
 #![cfg(feature = "early-data")]
 
-use std::io::{ self, BufReader, BufRead, Cursor };
-use std::process::{ Command, Child, Stdio };
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::marker::Unpin;
-use std::pin::{ Pin };
-use std::task::{ Context, Poll };
-use std::time::Duration;
-use tokio::prelude::*;
-use tokio::net::TcpStream;
-use tokio::time::delay_for;
-use futures_util::{ future, ready };
+use futures_util::{future, ready};
 use rustls::ClientConfig;
-use tokio_rustls::{ TlsConnector, client::TlsStream };
 use std::future::Future;
-
+use std::io::{self, BufRead, BufReader, Cursor};
+use std::marker::Unpin;
+use std::net::SocketAddr;
+use std::pin::Pin;
+use std::process::{Child, Command, Stdio};
+use std::sync::Arc;
+use std::task::{Context, Poll};
+use std::time::Duration;
+use tokio::net::TcpStream;
+use tokio::prelude::*;
+use tokio::time::delay_for;
+use tokio_rustls::{client::TlsStream, TlsConnector};
 
 struct Read1<T>(T);
 
@@ -29,11 +28,12 @@ impl<T: AsyncRead + Unpin> Future for Read1<T> {
     }
 }
 
-async fn send(config: Arc<ClientConfig>, addr: SocketAddr, data: &[u8])
-    -> io::Result<TlsStream<TcpStream>>
-{
-    let connector = TlsConnector::from(config)
-        .early_data(true);
+async fn send(
+    config: Arc<ClientConfig>,
+    addr: SocketAddr,
+    data: &[u8],
+) -> io::Result<TlsStream<TcpStream>> {
+    let connector = TlsConnector::from(config).early_data(true);
     let stream = TcpStream::connect(&addr).await?;
     let domain = webpki::DNSNameRef::try_from_ascii_str("testserver.com").unwrap();
 
@@ -97,10 +97,8 @@ async fn test_0rtt() -> io::Result<()> {
     let stdout = handle.0.stdout.as_mut().unwrap();
     let mut lines = BufReader::new(stdout).lines();
 
-    let has_msg1 = lines.by_ref()
-        .any(|line| line.unwrap().contains("hello"));
-    let has_msg2 = lines.by_ref()
-        .any(|line| line.unwrap().contains("world!"));
+    let has_msg1 = lines.by_ref().any(|line| line.unwrap().contains("hello"));
+    let has_msg2 = lines.by_ref().any(|line| line.unwrap().contains("world!"));
 
     assert!(has_msg1 && has_msg2);
 

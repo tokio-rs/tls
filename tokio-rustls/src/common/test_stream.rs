@@ -1,39 +1,44 @@
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{ Poll, Context };
+use super::Stream;
 use futures_core::ready;
 use futures_util::future::poll_fn;
 use futures_util::task::noop_waker_ref;
-use tokio::io::{ AsyncRead, AsyncWrite, AsyncReadExt, AsyncWriteExt };
-use std::io::{ self, Read, Write, BufReader, Cursor };
+use rustls::internal::pemfile::{certs, rsa_private_keys};
+use rustls::{ClientConfig, ClientSession, NoClientAuth, ServerConfig, ServerSession, Session};
+use std::io::{self, BufReader, Cursor, Read, Write};
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use webpki::DNSNameRef;
-use rustls::internal::pemfile::{ certs, rsa_private_keys };
-use rustls::{
-    ServerConfig, ClientConfig,
-    ServerSession, ClientSession,
-    Session, NoClientAuth
-};
-use super::Stream;
-
 
 struct Good<'a>(&'a mut dyn Session);
 
 impl<'a> AsyncRead for Good<'a> {
-    fn poll_read(mut self: Pin<&mut Self>, _cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        mut buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
         Poll::Ready(self.0.write_tls(buf.by_ref()))
     }
 }
 
 impl<'a> AsyncWrite for Good<'a> {
-    fn poll_write(mut self: Pin<&mut Self>, _cx: &mut Context<'_>, mut buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        mut buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         let len = self.0.read_tls(buf.by_ref())?;
-        self.0.process_new_packets()
+        self.0
+            .process_new_packets()
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
         Poll::Ready(Ok(len))
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.0.process_new_packets()
+        self.0
+            .process_new_packets()
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
         Poll::Ready(Ok(()))
     }
@@ -47,13 +52,21 @@ impl<'a> AsyncWrite for Good<'a> {
 struct Pending;
 
 impl AsyncRead for Pending {
-    fn poll_read(self: Pin<&mut Self>, _cx: &mut Context<'_>, _: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        _: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
         Poll::Pending
     }
 }
 
 impl AsyncWrite for Pending {
-    fn poll_write(self: Pin<&mut Self>, _cx: &mut Context<'_>, _buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        _buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         Poll::Pending
     }
 
@@ -69,13 +82,21 @@ impl AsyncWrite for Pending {
 struct Eof;
 
 impl AsyncRead for Eof {
-    fn poll_read(self: Pin<&mut Self>, _cx: &mut Context<'_>, _: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        _: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
         Poll::Ready(Ok(0))
     }
 }
 
 impl AsyncWrite for Eof {
-    fn poll_write(self: Pin<&mut Self>, _cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         Poll::Ready(Ok(buf.len()))
     }
 
@@ -122,8 +143,14 @@ async fn stream_bad() -> io::Result<()> {
 
     let mut bad = Pending;
     let mut stream = Stream::new(&mut bad, &mut client);
-    assert_eq!(poll_fn(|cx| stream.as_mut_pin().poll_write(cx, &[0x42; 8])).await?, 8);
-    assert_eq!(poll_fn(|cx| stream.as_mut_pin().poll_write(cx, &[0x42; 8])).await?, 8);
+    assert_eq!(
+        poll_fn(|cx| stream.as_mut_pin().poll_write(cx, &[0x42; 8])).await?,
+        8
+    );
+    assert_eq!(
+        poll_fn(|cx| stream.as_mut_pin().poll_write(cx, &[0x42; 8])).await?,
+        8
+    );
     let r = poll_fn(|cx| stream.as_mut_pin().poll_write(cx, &[0x00; 1024])).await?; // fill buffer
     assert!(r < 1024);
 
@@ -164,7 +191,10 @@ async fn stream_handshake_eof() -> io::Result<()> {
 
     let mut cx = Context::from_waker(noop_waker_ref());
     let r = stream.handshake(&mut cx);
-    assert_eq!(r.map_err(|err| err.kind()), Poll::Ready(Err(io::ErrorKind::UnexpectedEof)));
+    assert_eq!(
+        r.map_err(|err| err.kind()),
+        Poll::Ready(Err(io::ErrorKind::UnexpectedEof))
+    );
 
     Ok(()) as io::Result<()>
 }
@@ -204,7 +234,11 @@ fn make_pair() -> (ServerSession, ClientSession) {
     (server, client)
 }
 
-fn do_handshake(client: &mut ClientSession, server: &mut ServerSession, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+fn do_handshake(
+    client: &mut ClientSession,
+    server: &mut ServerSession,
+    cx: &mut Context<'_>,
+) -> Poll<io::Result<()>> {
     let mut good = Good(server);
     let mut stream = Stream::new(&mut good, client);
 
