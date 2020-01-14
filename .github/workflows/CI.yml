@@ -1,6 +1,10 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+    - master
+  pull_request: {}
 
 jobs:
   check:
@@ -40,7 +44,7 @@ jobs:
         profile: minimal
     - uses: actions/checkout@master
     - name: Test
-      run: cargo test --all --all-features
+      run: cargo test --all
 
   lints:
     name: Lints
