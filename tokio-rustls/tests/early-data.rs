@@ -1,6 +1,6 @@
 #![cfg(feature = "early-data")]
 
-use std::io::{ self, BufReader, BufRead, Cursor };
+use std::io::{ self, BufRead, BufReader, Cursor };
 use std::process::{ Command, Child, Stdio };
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -73,6 +73,7 @@ async fn test_0rtt() -> io::Result<()> {
         .args(&["-cert", "./tests/end.cert"])
         .args(&["-key", "./tests/end.rsa"])
         .args(&["-port", "12354"])
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
         .map(DropKill)?;
