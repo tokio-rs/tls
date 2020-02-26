@@ -19,6 +19,14 @@ async fn client_to_server() {
     let server = async move {
         let (socket, _) = srv.accept().await.unwrap();
         let mut socket = server_tls.accept(socket).await.unwrap();
+
+        // Verify access to all of the nested inner streams (e.g. so that peer
+        // certificates can be accessed). This is just a compile check.
+        let native_tls_stream: &native_tls::TlsStream<_> = socket.get_ref();
+        let _peer_cert = native_tls_stream.peer_certificate().unwrap();
+        let allow_std_stream: &tokio_native_tls::AllowStd<_> = native_tls_stream.get_ref();
+        let _tokio_tcp_stream: &tokio::net::TcpStream = allow_std_stream.get_ref();
+        
         let mut data = Vec::new();
         socket.read_to_end(&mut data).await.unwrap();
         data
