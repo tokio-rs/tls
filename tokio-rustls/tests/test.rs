@@ -1,29 +1,30 @@
-use std::{ io, thread };
-use std::io::{ BufReader, Cursor };
-use std::sync::Arc;
-use std::sync::mpsc::channel;
-use std::net::SocketAddr;
 use futures_util::future::TryFutureExt;
 use lazy_static::lazy_static;
+use rustls::internal::pemfile::{certs, rsa_private_keys};
+use rustls::{ClientConfig, ServerConfig};
+use std::io::{BufReader, Cursor};
+use std::net::SocketAddr;
+use std::sync::mpsc::channel;
+use std::sync::Arc;
+use std::{io, thread};
+use tokio::io::{copy, split};
+use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 use tokio::runtime;
-use tokio::io::{ copy, split };
-use tokio::net::{ TcpListener, TcpStream };
-use rustls::{ ServerConfig, ClientConfig };
-use rustls::internal::pemfile::{ certs, rsa_private_keys };
-use tokio_rustls::{ TlsConnector, TlsAcceptor };
+use tokio_rustls::{TlsAcceptor, TlsConnector};
 
 const CERT: &str = include_str!("end.cert");
 const CHAIN: &str = include_str!("end.chain");
 const RSA: &str = include_str!("end.rsa");
 
-lazy_static!{
+lazy_static! {
     static ref TEST_SERVER: (SocketAddr, &'static str, &'static str) = {
         let cert = certs(&mut BufReader::new(Cursor::new(CERT))).unwrap();
         let mut keys = rsa_private_keys(&mut BufReader::new(Cursor::new(RSA))).unwrap();
 
         let mut config = ServerConfig::new(rustls::NoClientAuth::new());
-        config.set_single_cert(cert, keys.pop().unwrap())
+        config
+            .set_single_cert(cert, keys.pop().unwrap())
             .expect("invalid key or certificate");
         let acceptor = TlsAcceptor::from(Arc::new(config));
 
@@ -55,11 +56,13 @@ lazy_static!{
                         copy(&mut reader, &mut writer).await?;
 
                         Ok(()) as io::Result<()>
-                    }.unwrap_or_else(|err| eprintln!("server: {:?}", err));
+                    }
+                    .unwrap_or_else(|err| eprintln!("server: {:?}", err));
 
                     handle.spawn(fut);
                 }
-            }.unwrap_or_else(|err: io::Error| eprintln!("server: {:?}", err));
+            }
+            .unwrap_or_else(|err: io::Error| eprintln!("server: {:?}", err));
 
             runtime.block_on(done);
         });

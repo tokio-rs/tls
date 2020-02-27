@@ -3,14 +3,13 @@ mod handshake;
 #[cfg(feature = "unstable")]
 mod vecbuf;
 
-use std::pin::Pin;
-use std::task::{ Poll, Context };
-use std::io::{ self, Read };
-use rustls::Session;
-use tokio::io::{ AsyncRead, AsyncWrite };
 use futures_core as futures;
-pub(crate) use handshake::{ IoSession, MidHandshake };
-
+pub(crate) use handshake::{IoSession, MidHandshake};
+use rustls::Session;
+use std::io::{self, Read};
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 #[derive(Debug)]
 pub enum TlsState {
@@ -26,8 +25,7 @@ impl TlsState {
     #[inline]
     pub fn shutdown_read(&mut self) {
         match *self {
-            TlsState::WriteShutdown | TlsState::FullyShutdown =>
-                *self = TlsState::FullyShutdown,
+            TlsState::WriteShutdown | TlsState::FullyShutdown => *self = TlsState::FullyShutdown,
             _ => *self = TlsState::ReadShutdown,
         }
     }
@@ -35,8 +33,7 @@ impl TlsState {
     #[inline]
     pub fn shutdown_write(&mut self) {
         match *self {
-            TlsState::ReadShutdown | TlsState::FullyShutdown =>
-                *self = TlsState::FullyShutdown,
+            TlsState::ReadShutdown | TlsState::FullyShutdown => *self = TlsState::FullyShutdown,
             _ => *self = TlsState::WriteShutdown,
         }
     }
@@ -62,7 +59,7 @@ impl TlsState {
     pub fn is_early_data(&self) -> bool {
         match self {
             TlsState::EarlyData(..) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -76,7 +73,7 @@ impl TlsState {
 pub struct Stream<'a, IO, S> {
     pub io: &'a mut IO,
     pub session: &'a mut S,
-    pub eof: bool
+    pub eof: bool,
 }
 
 impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
@@ -100,28 +97,27 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
     }
 
     pub fn process_new_packets(&mut self, cx: &mut Context) -> io::Result<()> {
-        self.session.process_new_packets()
-            .map_err(|err| {
-                // In case we have an alert to send describing this error,
-                // try a last-gasp write -- but don't predate the primary
-                // error.
-                let _ = self.write_io(cx);
+        self.session.process_new_packets().map_err(|err| {
+            // In case we have an alert to send describing this error,
+            // try a last-gasp write -- but don't predate the primary
+            // error.
+            let _ = self.write_io(cx);
 
-                io::Error::new(io::ErrorKind::InvalidData, err)
-            })
+            io::Error::new(io::ErrorKind::InvalidData, err)
+        })
     }
 
     pub fn read_io(&mut self, cx: &mut Context) -> Poll<io::Result<usize>> {
         struct Reader<'a, 'b, T> {
             io: &'a mut T,
-            cx: &'a mut Context<'b>
+            cx: &'a mut Context<'b>,
         }
 
         impl<'a, 'b, T: AsyncRead + Unpin> Read for Reader<'a, 'b, T> {
             fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
                 match Pin::new(&mut self.io).poll_read(self.cx, buf) {
                     Poll::Ready(result) => result,
-                    Poll::Pending => Err(io::ErrorKind::WouldBlock.into())
+                    Poll::Pending => Err(io::ErrorKind::WouldBlock.into()),
                 }
             }
         }
@@ -131,7 +127,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
         let n = match self.session.read_tls(&mut reader) {
             Ok(n) => n,
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,
-            Err(err) => return Poll::Ready(Err(err))
+            Err(err) => return Poll::Ready(Err(err)),
         };
 
         Poll::Ready(Ok(n))
@@ -143,21 +139,21 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
 
         struct Writer<'a, 'b, T> {
             io: &'a mut T,
-            cx: &'a mut Context<'b>
+            cx: &'a mut Context<'b>,
         }
 
         impl<'a, 'b, T: AsyncWrite + Unpin> Write for Writer<'a, 'b, T> {
             fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
                 match Pin::new(&mut self.io).poll_write(self.cx, buf) {
                     Poll::Ready(result) => result,
-                    Poll::Pending => Err(io::ErrorKind::WouldBlock.into())
+                    Poll::Pending => Err(io::ErrorKind::WouldBlock.into()),
                 }
             }
 
             fn flush(&mut self) -> io::Result<()> {
                 match Pin::new(&mut self.io).poll_flush(self.cx) {
                     Poll::Ready(result) => result,
-                    Poll::Pending => Err(io::ErrorKind::WouldBlock.into())
+                    Poll::Pending => Err(io::ErrorKind::WouldBlock.into()),
                 }
             }
         }
@@ -166,7 +162,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
 
         match self.session.write_tls(&mut writer) {
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Pending,
-            result => Poll::Ready(result)
+            result => Poll::Ready(result),
         }
     }
 
@@ -176,7 +172,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
 
         struct Writer<'a, 'b, T> {
             io: &'a mut T,
-            cx: &'a mut Context<'b>
+            cx: &'a mut Context<'b>,
         }
 
         impl<'a, 'b, T: AsyncWrite + Unpin> WriteV for Writer<'a, 'b, T> {
@@ -187,7 +183,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
 
                 match Pin::new(&mut self.io).poll_write_buf(self.cx, &mut vbuf) {
                     Poll::Ready(result) => result,
-                    Poll::Pending => Err(io::ErrorKind::WouldBlock.into())
+                    Poll::Pending => Err(io::ErrorKind::WouldBlock.into()),
                 }
             }
         }
@@ -196,7 +192,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
 
         match self.session.writev_tls(&mut writer) {
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Pending,
-            result => Poll::Ready(result)
+            result => Poll::Ready(result),
         }
     }
 
@@ -213,9 +209,9 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
                     Poll::Ready(Ok(n)) => wrlen += n,
                     Poll::Pending => {
                         write_would_block = true;
-                        break
-                    },
-                    Poll::Ready(Err(err)) => return Poll::Ready(Err(err))
+                        break;
+                    }
+                    Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
                 }
             }
 
@@ -225,9 +221,9 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
                     Poll::Ready(Ok(n)) => rdlen += n,
                     Poll::Pending => {
                         read_would_block = true;
-                        break
-                    },
-                    Poll::Ready(Err(err)) => return Poll::Ready(Err(err))
+                        break;
+                    }
+                    Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
                 }
             }
 
@@ -237,21 +233,27 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
                 (true, true) => {
                     let err = io::Error::new(io::ErrorKind::UnexpectedEof, "tls handshake eof");
                     Poll::Ready(Err(err))
-                },
+                }
                 (_, false) => Poll::Ready(Ok((rdlen, wrlen))),
-                (_, true) if write_would_block || read_would_block => if rdlen != 0 || wrlen != 0 {
-                    Poll::Ready(Ok((rdlen, wrlen)))
-                } else {
-                    Poll::Pending
-                },
-                (..) => continue
-            }
+                (_, true) if write_would_block || read_would_block => {
+                    if rdlen != 0 || wrlen != 0 {
+                        Poll::Ready(Ok((rdlen, wrlen)))
+                    } else {
+                        Poll::Pending
+                    }
+                }
+                (..) => continue,
+            };
         }
     }
 }
 
 impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a, IO, S> {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
         let mut pos = 0;
 
         while pos != buf.len() {
@@ -262,14 +264,14 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a
                 match self.read_io(cx) {
                     Poll::Ready(Ok(0)) => {
                         self.eof = true;
-                        break
-                    },
+                        break;
+                    }
                     Poll::Ready(Ok(_)) => (),
                     Poll::Pending => {
                         would_block = true;
-                        break
-                    },
-                    Poll::Ready(Err(err)) => return Poll::Ready(Err(err))
+                        break;
+                    }
+                    Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
                 }
             }
 
@@ -280,13 +282,14 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a
                 Ok(n) if self.eof || would_block => Poll::Ready(Ok(pos + n)),
                 Ok(n) => {
                     pos += n;
-                    continue
-                },
+                    continue;
+                }
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Pending,
-                Err(ref err) if err.kind() == io::ErrorKind::ConnectionAborted && pos != 0 =>
-                    Poll::Ready(Ok(pos)),
-                Err(err) => Poll::Ready(Err(err))
-            }
+                Err(ref err) if err.kind() == io::ErrorKind::ConnectionAborted && pos != 0 => {
+                    Poll::Ready(Ok(pos))
+                }
+                Err(err) => Poll::Ready(Err(err)),
+            };
         }
 
         Poll::Ready(Ok(pos))
@@ -294,7 +297,11 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a
 }
 
 impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'a, IO, S> {
-    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         let mut pos = 0;
 
         while pos != buf.len() {
@@ -303,25 +310,25 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
             match self.session.write(&buf[pos..]) {
                 Ok(n) => pos += n,
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => (),
-                Err(err) => return Poll::Ready(Err(err))
+                Err(err) => return Poll::Ready(Err(err)),
             };
 
             while self.session.wants_write() {
                 match self.write_io(cx) {
                     Poll::Ready(Ok(0)) | Poll::Pending => {
                         would_block = true;
-                        break
-                    },
+                        break;
+                    }
                     Poll::Ready(Ok(_)) => (),
-                    Poll::Ready(Err(err)) => return Poll::Ready(Err(err))
+                    Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
                 }
             }
 
             return match (pos, would_block) {
                 (0, true) => Poll::Pending,
                 (n, true) => Poll::Ready(Ok(n)),
-                (_, false) => continue
-            }
+                (_, false) => continue,
+            };
         }
 
         Poll::Ready(Ok(pos))

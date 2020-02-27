@@ -1,7 +1,6 @@
 use super::*;
-use rustls::Session;
 use crate::common::IoSession;
-
+use rustls::Session;
 
 /// A wrapper around an underlying raw stream which implements the TLS or SSL
 /// protocol.
@@ -58,20 +57,24 @@ where
         false
     }
 
-    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
         match self.state {
             #[cfg(feature = "early-data")]
             TlsState::EarlyData(..) => Poll::Pending,
             TlsState::Stream | TlsState::WriteShutdown => {
                 let this = self.get_mut();
-                let mut stream = Stream::new(&mut this.io, &mut this.session)
-                    .set_eof(!this.state.readable());
+                let mut stream =
+                    Stream::new(&mut this.io, &mut this.session).set_eof(!this.state.readable());
 
                 match stream.as_mut_pin().poll_read(cx, buf) {
                     Poll::Ready(Ok(0)) => {
                         this.state.shutdown_read();
                         Poll::Ready(Ok(0))
-                    },
+                    }
                     Poll::Ready(Ok(n)) => Poll::Ready(Ok(n)),
                     Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::ConnectionAborted => {
                         this.state.shutdown_read();
@@ -80,8 +83,8 @@ where
                             this.state.shutdown_write();
                         }
                         Poll::Ready(Ok(0))
-                    },
-                    output => output
+                    }
+                    output => output,
                 }
             }
             TlsState::ReadShutdown | TlsState::FullyShutdown => Poll::Ready(Ok(0)),
@@ -95,10 +98,14 @@ where
 {
     /// Note: that it does not guarantee the final data to be sent.
     /// To be cautious, you must manually call `flush`.
-    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         let this = self.get_mut();
-        let mut stream = Stream::new(&mut this.io, &mut this.session)
-            .set_eof(!this.state.readable());
+        let mut stream =
+            Stream::new(&mut this.io, &mut this.session).set_eof(!this.state.readable());
 
         match this.state {
             #[cfg(feature = "early-data")]
@@ -110,9 +117,10 @@ where
                 if let Some(mut early_data) = stream.session.early_data() {
                     let len = match early_data.write(buf) {
                         Ok(n) => n,
-                        Err(ref err) if err.kind() == io::ErrorKind::WouldBlock =>
-                            return Poll::Pending,
-                        Err(err) => return Poll::Ready(Err(err))
+                        Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                            return Poll::Pending
+                        }
+                        Err(err) => return Poll::Ready(Err(err)),
                     };
                     if len != 0 {
                         data.extend_from_slice(&buf[..len]);
@@ -143,10 +151,11 @@ where
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
-        let mut stream = Stream::new(&mut this.io, &mut this.session)
-            .set_eof(!this.state.readable());
+        let mut stream =
+            Stream::new(&mut this.io, &mut this.session).set_eof(!this.state.readable());
 
-        #[cfg(feature = "early-data")] {
+        #[cfg(feature = "early-data")]
+        {
             use futures_core::ready;
 
             if let TlsState::EarlyData(ref mut pos, ref mut data) = this.state {
@@ -176,7 +185,8 @@ where
             self.state.shutdown_write();
         }
 
-        #[cfg(feature = "early-data")] {
+        #[cfg(feature = "early-data")]
+        {
             // we skip the handshake
             if let TlsState::EarlyData(..) = self.state {
                 return Pin::new(&mut self.io).poll_shutdown(cx);
@@ -184,8 +194,8 @@ where
         }
 
         let this = self.get_mut();
-        let mut stream = Stream::new(&mut this.io, &mut this.session)
-            .set_eof(!this.state.readable());
+        let mut stream =
+            Stream::new(&mut this.io, &mut this.session).set_eof(!this.state.readable());
         stream.as_mut_pin().poll_shutdown(cx)
     }
 }

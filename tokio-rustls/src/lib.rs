@@ -1,19 +1,19 @@
 //! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
 
-mod common;
 pub mod client;
+mod common;
 pub mod server;
 
+use common::{MidHandshake, Stream, TlsState};
+use futures_core::future::FusedFuture;
+use rustls::{ClientConfig, ClientSession, ServerConfig, ServerSession, Session};
+use std::future::Future;
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::future::Future;
-use std::task::{ Context, Poll };
-use futures_core::future::FusedFuture;
-use tokio::io::{ AsyncRead, AsyncWrite };
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncWrite};
 use webpki::DNSNameRef;
-use rustls::{ ClientConfig, ClientSession, ServerConfig, ServerSession, Session };
-use common::{ Stream, TlsState, MidHandshake };
 
 pub use rustls;
 pub use webpki;
@@ -88,7 +88,7 @@ impl TlsConnector {
                 TlsState::Stream
             },
 
-            session
+            session,
         }))
     }
 }
@@ -151,9 +151,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Connect<IO> {
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.0)
-            .poll(cx)
-            .map_err(|(err, _)| err)
+        Pin::new(&mut self.0).poll(cx).map_err(|(err, _)| err)
     }
 }
 
@@ -169,9 +167,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Accept<IO> {
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.0)
-            .poll(cx)
-            .map_err(|(err, _)| err)
+        Pin::new(&mut self.0).poll(cx).map_err(|(err, _)| err)
     }
 }
 

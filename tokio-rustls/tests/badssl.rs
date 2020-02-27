@@ -1,21 +1,20 @@
-use std::io;
-use std::sync::Arc;
-use std::net::ToSocketAddrs;
-use tokio::prelude::*;
-use tokio::net::TcpStream;
 use rustls::ClientConfig;
-use tokio_rustls::{ TlsConnector, client::TlsStream };
+use std::io;
+use std::net::ToSocketAddrs;
+use std::sync::Arc;
+use tokio::net::TcpStream;
+use tokio::prelude::*;
+use tokio_rustls::{client::TlsStream, TlsConnector};
 
-
-async fn get(config: Arc<ClientConfig>, domain: &str, port: u16)
-    -> io::Result<(TlsStream<TcpStream>, String)>
-{
+async fn get(
+    config: Arc<ClientConfig>,
+    domain: &str,
+    port: u16,
+) -> io::Result<(TlsStream<TcpStream>, String)> {
     let connector = TlsConnector::from(config);
     let input = format!("GET / HTTP/1.0\r\nHost: {}\r\n\r\n", domain);
 
-    let addr = (domain, port)
-        .to_socket_addrs()?
-        .next().unwrap();
+    let addr = (domain, port).to_socket_addrs()?.next().unwrap();
     let domain = webpki::DNSNameRef::try_from_ascii_str(&domain).unwrap();
     let mut buf = Vec::new();
 
@@ -31,7 +30,9 @@ async fn get(config: Arc<ClientConfig>, domain: &str, port: u16)
 #[tokio::test]
 async fn test_tls12() -> io::Result<()> {
     let mut config = ClientConfig::new();
-    config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+    config
+        .root_store
+        .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
     config.versions = vec![rustls::ProtocolVersion::TLSv1_2];
     let config = Arc::new(config);
     let domain = "tls-v1-2.badssl.com";
@@ -52,7 +53,9 @@ fn test_tls13() {
 #[tokio::test]
 async fn test_modern() -> io::Result<()> {
     let mut config = ClientConfig::new();
-    config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+    config
+        .root_store
+        .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
     let config = Arc::new(config);
     let domain = "mozilla-modern.badssl.com";
 
