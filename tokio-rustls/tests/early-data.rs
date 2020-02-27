@@ -1,12 +1,9 @@
 #![cfg(feature = "early-data")]
 
-use futures_util::{future, ready};
-use rustls::ClientConfig;
-use std::future::Future;
 use std::io::{self, BufRead, BufReader, Cursor};
-use std::marker::Unpin;
 use std::net::SocketAddr;
 use std::pin::Pin;
+use std::process::{Child, Command, Stdio};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -73,6 +70,7 @@ async fn test_0rtt() -> io::Result<()> {
         .args(&["-cert", "./tests/end.cert"])
         .args(&["-key", "./tests/end.rsa"])
         .args(&["-port", "12354"])
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
         .map(DropKill)?;
