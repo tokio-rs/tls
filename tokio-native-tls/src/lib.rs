@@ -40,10 +40,23 @@ use std::pin::Pin;
 use std::ptr::null_mut;
 use std::task::{Context, Poll};
 
+/// An intermediate wrapper for the inner stream `S`.
 #[derive(Debug)]
-struct AllowStd<S> {
+pub struct AllowStd<S> {
     inner: S,
     context: *mut (),
+}
+
+impl<S> AllowStd<S> {
+    /// Returns a shared reference to the inner stream.
+    pub fn get_ref(&self) -> &S {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner stream.
+    pub fn get_mut(&mut self) -> &mut S {
+        &mut self.inner
+    }
 }
 
 /// A wrapper around an underlying raw stream which implements the TLS or SSL
@@ -163,19 +176,19 @@ impl<S> TlsStream<S> {
     }
 
     /// Returns a shared reference to the inner stream.
-    pub fn get_ref(&self) -> &S
+    pub fn get_ref(&self) -> &native_tls::TlsStream<AllowStd<S>>
     where
         S: AsyncRead + AsyncWrite + Unpin,
     {
-        &self.0.get_ref().inner
+        &self.0
     }
 
     /// Returns a mutable reference to the inner stream.
-    pub fn get_mut(&mut self) -> &mut S
+    pub fn get_mut(&mut self) -> &mut native_tls::TlsStream<AllowStd<S>>
     where
         S: AsyncRead + AsyncWrite + Unpin,
     {
-        &mut self.0.get_mut().inner
+        &mut self.0
     }
 }
 
