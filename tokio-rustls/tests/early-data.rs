@@ -1,6 +1,6 @@
 #![cfg(feature = "early-data")]
 
-use futures_util::{ready, future, future::Future};
+use futures_util::{future, future::Future, ready};
 use rustls::ClientConfig;
 use std::io::{self, BufRead, BufReader, Cursor};
 use std::net::SocketAddr;
