@@ -1,9 +1,10 @@
 #![cfg(feature = "early-data")]
 
+use futures_util::{future, future::Future, ready};
+use rustls::ClientConfig;
 use std::io::{self, BufRead, BufReader, Cursor};
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::process::{Child, Command, Stdio};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::task::{Context, Poll};
