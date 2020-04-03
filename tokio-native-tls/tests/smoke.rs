@@ -1,11 +1,31 @@
 use futures::join;
+use lazy_static::lazy_static;
 use native_tls::{Certificate, Identity};
-use std::io::Error;
+use std::{fs, io::Error, path::PathBuf, process::Command};
 use tokio::{
     io::{AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
 use tokio_native_tls::{TlsAcceptor, TlsConnector};
+
+lazy_static! {
+    static ref CERT_DIR: PathBuf = {
+        if cfg!(unix) {
+            let dir = tempfile::TempDir::new().unwrap();
+            let path = dir.path().to_str().unwrap();
+
+            Command::new("sh")
+                .arg("-c")
+                .arg(format!("./scripts/generate-certificate.sh {}", path))
+                .output()
+                .expect("failed to execute process");
+
+            dir.into_path()
+        } else {
+            PathBuf::from("tests")
+        }
+    };
+}
 
 #[tokio::test]
 async fn client_to_server() {
@@ -26,7 +46,7 @@ async fn client_to_server() {
         let _peer_cert = native_tls_stream.peer_certificate().unwrap();
         let allow_std_stream: &tokio_native_tls::AllowStd<_> = native_tls_stream.get_ref();
         let _tokio_tcp_stream: &tokio::net::TcpStream = allow_std_stream.get_ref();
-        
+
         let mut data = Vec::new();
         socket.read_to_end(&mut data).await.unwrap();
         data
@@ -115,14 +135,13 @@ async fn one_byte_at_a_time() {
 }
 
 fn context() -> (TlsAcceptor, TlsConnector) {
-    // Certs borrowed from `rust-native-tls/tests`
-    let pkcs12 = include_bytes!("identity.p12");
-    let der = include_bytes!("root-ca.der");
+    let pkcs12 = fs::read(CERT_DIR.join("identity.p12")).unwrap();
+    let der = fs::read(CERT_DIR.join("root-ca.der")).unwrap();
 
-    let identity = Identity::from_pkcs12(pkcs12, "mypass").unwrap();
+    let identity = Identity::from_pkcs12(&pkcs12, "mypass").unwrap();
     let acceptor = native_tls::TlsAcceptor::builder(identity).build().unwrap();
 
-    let cert = Certificate::from_der(der).unwrap();
+    let cert = Certificate::from_der(&der).unwrap();
     let connector = native_tls::TlsConnector::builder()
         .add_root_certificate(cert)
         .build()
