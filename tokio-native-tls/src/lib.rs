@@ -339,6 +339,17 @@ impl TlsAcceptor {
     {
         handshake(move |s| self.0.accept(s), stream).await
     }
+
+    /// Accepts a new client connection with the provided stream.
+    ///
+    /// Unlike `TlsAcceptor::accept`, this function just return `AcceptFuture`
+    /// instead of async function.
+    pub fn accept2<S>(&self, stream: S) -> AcceptFuture<S>
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        AcceptFuture::new(self.0.clone(), stream)
+    }
 }
 
 impl fmt::Debug for TlsAcceptor {
@@ -369,6 +380,75 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Future for MidHandshake<S> {
                 mut_self.0 = Some(s);
                 Poll::Pending
             }
+        }
+    }
+}
+
+/// Return by TlsAcceptor::accept2
+#[must_use]
+pub struct AcceptFuture<S> {
+    state: AcceptState<S>,
+}
+
+impl<S> fmt::Debug for AcceptFuture<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AcceptFuture").finish()
+    }
+}
+
+struct AcceptFutureInner<S> {
+    acceptor: native_tls::TlsAcceptor,
+    stream: S,
+}
+
+enum AcceptState<S> {
+    Start(Option<AcceptFutureInner<S>>),
+    Handshake(MidHandshake<S>),
+}
+
+impl<S> AcceptFuture<S> {
+    pub(crate) fn new(acceptor: native_tls::TlsAcceptor, stream: S) -> Self {
+        AcceptFuture {
+            state: AcceptState::Start(Some(AcceptFutureInner { acceptor, stream })),
+        }
+    }
+}
+
+impl<S> Future for AcceptFuture<S>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    type Output = Result<TlsStream<S>, Error>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut_self = self.get_mut();
+        let state = &mut mut_self.state;
+
+        match state {
+            AcceptState::Start(ref mut fut) => {
+                let AcceptFutureInner { acceptor, stream } =
+                    fut.take().expect("future polled after completion");
+
+                let stream = AllowStd {
+                    inner: stream,
+                    context: cx as *mut _ as *mut (),
+                };
+
+                match acceptor.accept(stream) {
+                    Ok(mut s) => {
+                        s.get_mut().context = null_mut();
+                        mut_self.state = AcceptState::Start(None);
+                        Poll::Ready(Ok(TlsStream(s)))
+                    }
+                    Err(HandshakeError::WouldBlock(mut s)) => {
+                        s.get_mut().context = null_mut();
+                        mut_self.state = AcceptState::Handshake(MidHandshake(Some(s)));
+                        Poll::Pending
+                    }
+                    Err(HandshakeError::Failure(e)) => Poll::Ready(Err(e)),
+                }
+            }
+            AcceptState::Handshake(ref mut f) => Pin::new(f).poll(cx),
         }
     }
 }
