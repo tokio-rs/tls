@@ -362,13 +362,16 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Future for MidHandshake<S> {
 
         s.get_mut().context = cx as *mut _ as *mut ();
         match s.handshake() {
-            Ok(stream) => Poll::Ready(Ok(TlsStream(stream))),
-            Err(HandshakeError::Failure(e)) => Poll::Ready(Err(e)),
+            Ok(mut s) => {
+                s.get_mut().context = null_mut();
+                Poll::Ready(Ok(TlsStream(s)))
+            }
             Err(HandshakeError::WouldBlock(mut s)) => {
                 s.get_mut().context = null_mut();
                 mut_self.0 = Some(s);
                 Poll::Pending
             }
+            Err(HandshakeError::Failure(e)) => Poll::Ready(Err(e)),
         }
     }
 }
