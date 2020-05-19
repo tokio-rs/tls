@@ -47,11 +47,12 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        let mut stream = if let MidHandshake::Handshaking(stream) = mem::replace(this, MidHandshake::End) {
-            stream
-        } else {
-            panic!("unexpected polling after handshake")
-        };
+        let mut stream =
+            if let MidHandshake::Handshaking(stream) = mem::replace(this, MidHandshake::End) {
+                stream
+            } else {
+                panic!("unexpected polling after handshake")
+            };
 
         if !stream.skip_handshake() {
             let (state, io, session) = stream.get_mut();
