@@ -218,7 +218,10 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
             while !self.eof && self.session.wants_read() {
                 match self.read_io(cx) {
                     Poll::Ready(Ok(0)) => self.eof = true,
-                    Poll::Ready(Ok(n)) => rdlen += n,
+                    Poll::Ready(Ok(n)) => {
+                        rdlen += n;
+                        self.process_new_packets(cx)?;
+                    }
                     Poll::Pending => {
                         read_would_block = true;
                         break;
@@ -226,8 +229,6 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
                     Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
                 }
             }
-
-            self.process_new_packets(cx)?;
 
             return match (self.eof, self.session.is_handshaking()) {
                 (true, true) => {
@@ -266,7 +267,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a
                         self.eof = true;
                         break;
                     }
-                    Poll::Ready(Ok(_)) => (),
+                    Poll::Ready(Ok(_)) => self.process_new_packets(cx)?,
                     Poll::Pending => {
                         would_block = true;
                         break;
@@ -274,8 +275,6 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a
                     Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
                 }
             }
-
-            self.process_new_packets(cx)?;
 
             return match self.session.read(&mut buf[pos..]) {
                 Ok(0) if pos == 0 && would_block => Poll::Pending,
