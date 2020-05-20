@@ -5,6 +5,7 @@
 This crate contains a collection of Tokio based TLS libraries.
 
 - [`tokio-native-tls`](tokio-native-tls)
+- [`tokio-rustls`](tokio-rustls)
 
 ## Getting Help
 

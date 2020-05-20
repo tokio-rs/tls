@@ -96,17 +96,6 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
         Pin::new(self)
     }
 
-    pub fn process_new_packets(&mut self, cx: &mut Context) -> io::Result<()> {
-        self.session.process_new_packets().map_err(|err| {
-            // In case we have an alert to send describing this error,
-            // try a last-gasp write -- but don't predate the primary
-            // error.
-            let _ = self.write_io(cx);
-
-            io::Error::new(io::ErrorKind::InvalidData, err)
-        })
-    }
-
     pub fn read_io(&mut self, cx: &mut Context) -> Poll<io::Result<usize>> {
         struct Reader<'a, 'b, T> {
             io: &'a mut T,
@@ -129,6 +118,15 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,
             Err(err) => return Poll::Ready(Err(err)),
         };
+
+        self.session.process_new_packets().map_err(|err| {
+            // In case we have an alert to send describing this error,
+            // try a last-gasp write -- but don't predate the primary
+            // error.
+            let _ = self.write_io(cx);
+
+            io::Error::new(io::ErrorKind::InvalidData, err)
+        })?;
 
         Poll::Ready(Ok(n))
     }
@@ -218,10 +216,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
             while !self.eof && self.session.wants_read() {
                 match self.read_io(cx) {
                     Poll::Ready(Ok(0)) => self.eof = true,
-                    Poll::Ready(Ok(n)) => {
-                        rdlen += n;
-                        self.process_new_packets(cx)?;
-                    }
+                    Poll::Ready(Ok(n)) => rdlen += n,
                     Poll::Pending => {
                         read_would_block = true;
                         break;
@@ -267,7 +262,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a
                         self.eof = true;
                         break;
                     }
-                    Poll::Ready(Ok(_)) => self.process_new_packets(cx)?,
+                    Poll::Ready(Ok(_)) => (),
                     Poll::Pending => {
                         would_block = true;
                         break;
