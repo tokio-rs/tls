@@ -1,6 +1,13 @@
 use super::*;
-use crate::common::IoSession;
-use rustls::Session;
+use crate::common::{IoSession, MidHandshake, Stream, TlsState};
+use futures_core::future::FusedFuture;
+use rustls::{ServerConfig, ServerSession, Session};
+use std::future::Future;
+use std::io;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 /// A wrapper around an underlying raw stream which implements the TLS or SSL
 /// protocol.
@@ -130,5 +137,88 @@ where
         let mut stream =
             Stream::new(&mut this.io, &mut this.session).set_eof(!this.state.readable());
         stream.as_mut_pin().poll_shutdown(cx)
+    }
+}
+
+/// A wrapper around a `rustls::ServerConfig`, providing an async `accept` method.
+#[derive(Clone)]
+pub struct TlsAcceptor {
+    inner: Arc<ServerConfig>,
+}
+
+impl TlsAcceptor {
+    #[inline]
+    pub fn accept<IO>(&self, stream: IO) -> Accept<IO>
+    where
+        IO: AsyncRead + AsyncWrite + Unpin,
+    {
+        self.accept_with(stream, |_| ())
+    }
+
+    pub fn accept_with<IO, F>(&self, stream: IO, f: F) -> Accept<IO>
+    where
+        IO: AsyncRead + AsyncWrite + Unpin,
+        F: FnOnce(&mut ServerSession),
+    {
+        let mut session = ServerSession::new(&self.inner);
+        f(&mut session);
+
+        Accept(MidHandshake::Handshaking(TlsStream {
+            session,
+            io: stream,
+            state: TlsState::Stream,
+        }))
+    }
+}
+
+impl From<Arc<ServerConfig>> for TlsAcceptor {
+    fn from(inner: Arc<ServerConfig>) -> TlsAcceptor {
+        TlsAcceptor { inner }
+    }
+}
+
+/// Future returned from `TlsAcceptor::accept` which will resolve
+/// once the accept handshake has finished.
+pub struct Accept<IO>(MidHandshake<TlsStream<IO>>);
+
+/// Like [Accept], but returns `IO` on failure.
+pub struct FailableAccept<IO>(MidHandshake<TlsStream<IO>>);
+
+impl<IO> Accept<IO> {
+    #[inline]
+    pub fn into_failable(self) -> FailableAccept<IO> {
+        FailableAccept(self.0)
+    }
+}
+
+impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Accept<IO> {
+    type Output = io::Result<TlsStream<IO>>;
+
+    #[inline]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0).poll(cx).map_err(|(err, _)| err)
+    }
+}
+
+impl<IO: AsyncRead + AsyncWrite + Unpin> FusedFuture for Accept<IO> {
+    #[inline]
+    fn is_terminated(&self) -> bool {
+        self.0.is_terminated()
+    }
+}
+
+impl<IO: AsyncRead + AsyncWrite + Unpin> Future for FailableAccept<IO> {
+    type Output = Result<TlsStream<IO>, (io::Error, IO)>;
+
+    #[inline]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0).poll(cx)
+    }
+}
+
+impl<IO: AsyncRead + AsyncWrite + Unpin> FusedFuture for FailableAccept<IO> {
+    #[inline]
+    fn is_terminated(&self) -> bool {
+        self.0.is_terminated()
     }
 }

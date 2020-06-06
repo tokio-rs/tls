@@ -1,4 +1,4 @@
-#![cfg(feature = "early-data")]
+#![cfg(all(feature = "early-data", feature = "client"))]
 
 use futures_util::{future, future::Future, ready};
 use rustls::ClientConfig;

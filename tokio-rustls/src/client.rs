@@ -1,6 +1,13 @@
-use super::*;
-use crate::common::IoSession;
-use rustls::Session;
+use crate::common::{IoSession, MidHandshake, Stream, TlsState};
+use futures_core::future::FusedFuture;
+use rustls::{ClientConfig, ClientSession, Session};
+use std::future::Future;
+use std::io;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncWrite};
+use webpki::DNSNameRef;
 
 /// A wrapper around an underlying raw stream which implements the TLS or SSL
 /// protocol.
@@ -197,5 +204,114 @@ where
         let mut stream =
             Stream::new(&mut this.io, &mut this.session).set_eof(!this.state.readable());
         stream.as_mut_pin().poll_shutdown(cx)
+    }
+}
+
+/// A wrapper around a `rustls::ClientConfig`, providing an async `connect` method.
+#[derive(Clone)]
+pub struct TlsConnector {
+    inner: Arc<ClientConfig>,
+    #[cfg(feature = "early-data")]
+    early_data: bool,
+}
+
+impl From<Arc<ClientConfig>> for TlsConnector {
+    fn from(inner: Arc<ClientConfig>) -> TlsConnector {
+        TlsConnector {
+            inner,
+            #[cfg(feature = "early-data")]
+            early_data: false,
+        }
+    }
+}
+
+impl TlsConnector {
+    /// Enable 0-RTT.
+    ///
+    /// If you want to use 0-RTT,
+    /// You must also set `ClientConfig.enable_early_data` to `true`.
+    #[cfg(feature = "early-data")]
+    pub fn early_data(mut self, flag: bool) -> TlsConnector {
+        self.early_data = flag;
+        self
+    }
+
+    #[inline]
+    pub fn connect<IO>(&self, domain: DNSNameRef, stream: IO) -> Connect<IO>
+    where
+        IO: AsyncRead + AsyncWrite + Unpin,
+    {
+        self.connect_with(domain, stream, |_| ())
+    }
+
+    pub fn connect_with<IO, F>(&self, domain: DNSNameRef, stream: IO, f: F) -> Connect<IO>
+    where
+        IO: AsyncRead + AsyncWrite + Unpin,
+        F: FnOnce(&mut ClientSession),
+    {
+        let mut session = ClientSession::new(&self.inner, domain);
+        f(&mut session);
+
+        Connect(MidHandshake::Handshaking(TlsStream {
+            io: stream,
+
+            #[cfg(not(feature = "early-data"))]
+            state: TlsState::Stream,
+
+            #[cfg(feature = "early-data")]
+            state: if self.early_data && session.early_data().is_some() {
+                TlsState::EarlyData(0, Vec::new())
+            } else {
+                TlsState::Stream
+            },
+
+            session,
+        }))
+    }
+}
+
+/// Future returned from `TlsConnector::connect` which will resolve
+/// once the connection handshake has finished.
+pub struct Connect<IO>(MidHandshake<TlsStream<IO>>);
+
+impl<IO> Connect<IO> {
+    #[inline]
+    pub fn into_failable(self) -> FailableConnect<IO> {
+        FailableConnect(self.0)
+    }
+}
+
+impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Connect<IO> {
+    type Output = io::Result<TlsStream<IO>>;
+
+    #[inline]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0).poll(cx).map_err(|(err, _)| err)
+    }
+}
+
+impl<IO: AsyncRead + AsyncWrite + Unpin> FusedFuture for Connect<IO> {
+    #[inline]
+    fn is_terminated(&self) -> bool {
+        self.0.is_terminated()
+    }
+}
+
+/// Like [Connect], but returns `IO` on failure.
+pub struct FailableConnect<IO>(MidHandshake<TlsStream<IO>>);
+
+impl<IO: AsyncRead + AsyncWrite + Unpin> Future for FailableConnect<IO> {
+    type Output = Result<TlsStream<IO>, (io::Error, IO)>;
+
+    #[inline]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0).poll(cx)
+    }
+}
+
+impl<IO: AsyncRead + AsyncWrite + Unpin> FusedFuture for FailableConnect<IO> {
+    #[inline]
+    fn is_terminated(&self) -> bool {
+        self.0.is_terminated()
     }
 }

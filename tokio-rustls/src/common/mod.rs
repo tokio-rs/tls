@@ -55,7 +55,7 @@ impl TlsState {
     }
 
     #[inline]
-    #[cfg(feature = "early-data")]
+    #[cfg(all(feature = "early-data", feature = "client"))]
     pub fn is_early_data(&self) -> bool {
         match self {
             TlsState::EarlyData(..) => true,
@@ -64,7 +64,7 @@ impl TlsState {
     }
 
     #[inline]
-    #[cfg(not(feature = "early-data"))]
+    #[cfg(all(not(feature = "early-data"), feature = "client"))]
     pub const fn is_early_data(&self) -> bool {
         false
     }
@@ -344,5 +344,5 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "client", feature = "server"))]
 mod test_stream;
