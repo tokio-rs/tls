@@ -2,14 +2,14 @@ use bytes::Buf;
 use std::cmp::{self, Ordering};
 use std::io::IoSlice;
 
-pub struct VecBuf<'a, 'b: 'a> {
+pub struct VecBuf<'a> {
     pos: usize,
     cur: usize,
-    inner: &'a [&'b [u8]],
+    inner: &'a [IoSlice<'a>]
 }
 
-impl<'a, 'b> VecBuf<'a, 'b> {
-    pub fn new(vbytes: &'a [&'b [u8]]) -> Self {
+impl<'a> VecBuf<'a> {
+    pub fn new(vbytes: &'a [IoSlice<'a>]) -> Self {
         VecBuf {
             pos: 0,
             cur: 0,
@@ -18,7 +18,7 @@ impl<'a, 'b> VecBuf<'a, 'b> {
     }
 }
 
-impl<'a, 'b> Buf for VecBuf<'a, 'b> {
+impl<'a> Buf for VecBuf<'a> {
     fn remaining(&self) -> usize {
         let sum = self
             .inner
@@ -56,6 +56,7 @@ impl<'a, 'b> Buf for VecBuf<'a, 'b> {
     }
 
     #[allow(clippy::needless_range_loop)]
+    #[inline]
     fn bytes_vectored<'c>(&'c self, dst: &mut [IoSlice<'c>]) -> usize {
         let len = cmp::min(self.inner.len() - self.pos, dst.len());
 
@@ -64,7 +65,7 @@ impl<'a, 'b> Buf for VecBuf<'a, 'b> {
         }
 
         for i in 1..len {
-            dst[i] = IoSlice::new(&self.inner[self.pos + i]);
+            dst[i] = self.inner[self.pos + i];
         }
 
         len
@@ -77,7 +78,8 @@ mod test_vecbuf {
 
     #[test]
     fn test_fresh_cursor_vec() {
-        let mut buf = VecBuf::new(&[b"he", b"llo"]);
+        let buf = [IoSlice::new(b"he"), IoSlice::new(b"llo")];
+        let mut buf = VecBuf::new(&buf);
 
         assert_eq!(buf.remaining(), 5);
         assert_eq!(buf.bytes(), b"he");
@@ -100,28 +102,33 @@ mod test_vecbuf {
 
     #[test]
     fn test_get_u8() {
-        let mut buf = VecBuf::new(&[b"\x21z", b"omg"]);
+        let buf = [IoSlice::new(b"\x21z"), IoSlice::new(b"omg")];
+        let mut buf = VecBuf::new(&buf);
         assert_eq!(0x21, buf.get_u8());
     }
 
     #[test]
     fn test_get_u16() {
-        let mut buf = VecBuf::new(&[b"\x21\x54z", b"omg"]);
+        let buf = [IoSlice::new(b"\x21\x54z"), IoSlice::new(b"omg")];
+        let mut buf = VecBuf::new(&buf);
         assert_eq!(0x2154, buf.get_u16());
-        let mut buf = VecBuf::new(&[b"\x21\x54z", b"omg"]);
+        let buf = [IoSlice::new(b"\x21\x54z"), IoSlice::new(b"omg")];
+        let mut buf = VecBuf::new(&buf);
         assert_eq!(0x5421, buf.get_u16_le());
     }
 
     #[test]
     #[should_panic]
     fn test_get_u16_buffer_underflow() {
-        let mut buf = VecBuf::new(&[b"\x21"]);
+        let buf = [IoSlice::new(b"\x21")];
+        let mut buf = VecBuf::new(&buf);
         buf.get_u16();
     }
 
     #[test]
     fn test_bufs_vec() {
-        let buf = VecBuf::new(&[b"he", b"llo"]);
+        let buf = [IoSlice::new(b"he"), IoSlice::new(b"llo")];
+        let buf = VecBuf::new(&buf);
 
         let b1: &[u8] = &mut [0];
         let b2: &[u8] = &mut [0];

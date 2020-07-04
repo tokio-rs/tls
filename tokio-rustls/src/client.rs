@@ -107,6 +107,7 @@ where
         let mut stream =
             Stream::new(&mut this.io, &mut this.session).set_eof(!this.state.readable());
 
+        #[allow(clippy::match_single_binding)]
         match this.state {
             #[cfg(feature = "early-data")]
             TlsState::EarlyData(ref mut pos, ref mut data) => {
