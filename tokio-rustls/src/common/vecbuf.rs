@@ -5,7 +5,7 @@ use std::io::IoSlice;
 pub struct VecBuf<'a> {
     pos: usize,
     cur: usize,
-    inner: &'a [IoSlice<'a>]
+    inner: &'a [IoSlice<'a>],
 }
 
 impl<'a> VecBuf<'a> {

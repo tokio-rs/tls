@@ -159,7 +159,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
 
                 match Pin::new(&mut self.io).poll_write_buf(self.cx, &mut vbuf) {
                     Poll::Ready(result) => result,
-                    Poll::Pending => Err(io::ErrorKind::WouldBlock.into())
+                    Poll::Pending => Err(io::ErrorKind::WouldBlock.into()),
                 }
             }
 
