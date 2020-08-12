@@ -9,12 +9,12 @@ This crate contains a collection of Tokio based TLS libraries.
 
 ## Getting Help
 
-First, see if the answer to your question can be found in the [Guides] or the
+First, see if the answer to your question can be found in the [Tutorials] or the
 [API documentation]. If the answer is not there, there is an active community in
 the [Tokio Discord server][chat]. We would be happy to try to answer your
 question. Last, if that doesn't work, try opening an [issue] with the question.
 
-[Guides]: https://tokio.rs/docs/
+[Tutorials]: https://tokio.rs/tokio/tutorial
 [API documentation]: https://docs.rs/tokio/latest/tokio
 [chat]: https://discord.gg/tokio
 [issue]: https://github.com/tokio-rs/tls/issues/new
