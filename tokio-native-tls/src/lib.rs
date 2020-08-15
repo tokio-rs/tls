@@ -30,7 +30,7 @@
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use native_tls::{Error, HandshakeError, MidHandshakeTlsStream};
+use crate::native_tls::{Error, HandshakeError, MidHandshakeTlsStream};
 use std::fmt;
 use std::future::Future;
 use std::io::{self, Read, Write};
@@ -360,4 +360,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Future for MidHandshake<S> {
             Err(HandshakeError::Failure(e)) => Poll::Ready(Err(e)),
         }
     }
+}
+
+/// re-export native_tls
+pub mod native_tls {
+    pub use native_tls::*;
 }
