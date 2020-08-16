@@ -78,10 +78,6 @@ where
                     Poll::Ready(Ok(n)) => Poll::Ready(Ok(n)),
                     Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::ConnectionAborted => {
                         this.state.shutdown_read();
-                        if this.state.writeable() {
-                            stream.session.send_close_notify();
-                            this.state.shutdown_write();
-                        }
                         Poll::Ready(Ok(0))
                     }
                     output => output,
