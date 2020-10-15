@@ -36,18 +36,12 @@ impl TlsState {
 
     #[inline]
     pub fn writeable(&self) -> bool {
-        match *self {
-            TlsState::WriteShutdown | TlsState::FullyShutdown => false,
-            _ => true,
-        }
+        !matches!(*self, TlsState::WriteShutdown | TlsState::FullyShutdown)
     }
 
     #[inline]
     pub fn readable(&self) -> bool {
-        match self {
-            TlsState::ReadShutdown | TlsState::FullyShutdown => false,
-            _ => true,
-        }
+        !matches!(*self, TlsState::ReadShutdown | TlsState::FullyShutdown)
     }
 
     #[inline]
@@ -238,19 +232,23 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a
                 }
             }
 
-            return match self.session.read(&mut buf.initialize_unfilled()) {
+            return match self.session.read(buf.initialize_unfilled()) {
                 Ok(0) if prev == buf.remaining() && would_block => Poll::Pending,
                 Ok(n) => {
                     buf.advance(n);
 
                     if self.eof || would_block {
-                        break
+                        break;
                     } else {
-                        continue
+                        continue;
                     }
                 }
-                Err(ref err) if err.kind() == io::ErrorKind::ConnectionAborted && prev != buf.remaining()
-                    => break,
+                Err(ref err)
+                    if err.kind() == io::ErrorKind::ConnectionAborted
+                        && prev != buf.remaining() =>
+                {
+                    break
+                }
                 Err(err) => Poll::Ready(Err(err)),
             };
         }
@@ -272,7 +270,6 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
 
             match self.session.write(&buf[pos..]) {
                 Ok(n) => pos += n,
-                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => (),
                 Err(err) => return Poll::Ready(Err(err)),
             };
 

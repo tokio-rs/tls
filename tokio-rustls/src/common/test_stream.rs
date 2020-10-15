@@ -24,8 +24,8 @@ impl<'a> AsyncRead for Good<'a> {
             Ok(n) => {
                 buf.advance(n);
                 Ok(())
-            },
-            Err(err) => Err(err)
+            }
+            Err(err) => Err(err),
         })
     }
 }
