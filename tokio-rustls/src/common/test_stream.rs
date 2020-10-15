@@ -7,7 +7,7 @@ use std::io::{self, BufReader, Cursor, Read, Write};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use webpki::DNSNameRef;
 
 struct Good<'a>(&'a mut dyn Session);
@@ -16,9 +16,17 @@ impl<'a> AsyncRead for Good<'a> {
     fn poll_read(
         mut self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
-        mut buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        Poll::Ready(self.0.write_tls(buf.by_ref()))
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        let mut buf2 = buf.initialize_unfilled();
+
+        Poll::Ready(match self.0.write_tls(buf2.by_ref()) {
+            Ok(n) => {
+                buf.advance(n);
+                Ok(())
+            },
+            Err(err) => Err(err)
+        })
     }
 }
 
@@ -54,8 +62,8 @@ impl AsyncRead for Pending {
     fn poll_read(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
-        _: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        _: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         Poll::Pending
     }
 }
@@ -84,9 +92,9 @@ impl AsyncRead for Eof {
     fn poll_read(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
-        _: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        Poll::Ready(Ok(0))
+        _: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 }
 

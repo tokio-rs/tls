@@ -20,7 +20,7 @@ use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use webpki::DNSNameRef;
 
 pub use rustls;
@@ -249,8 +249,8 @@ where
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         match self.get_mut() {
             TlsStream::Client(x) => Pin::new(x).poll_read(cx, buf),
             TlsStream::Server(x) => Pin::new(x).poll_read(cx, buf),
