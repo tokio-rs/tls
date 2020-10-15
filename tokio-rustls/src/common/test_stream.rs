@@ -1,5 +1,4 @@
 use super::Stream;
-use futures_core::ready;
 use futures_util::future::poll_fn;
 use futures_util::task::noop_waker_ref;
 use rustls::internal::pemfile::{certs, rsa_private_keys};

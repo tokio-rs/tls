@@ -1,6 +1,6 @@
 [package]
 name = "tokio-rustls"
-version = "0.14.1"
+version = "0.20.0"
 authors = ["quininer kel <quininer@live.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/tokio-rs/tls"
@@ -12,8 +12,7 @@ categories = ["asynchronous", "cryptography", "network-programming"]
 edition = "2018"
 
 [dependencies]
-tokio = "0.2.0"
-futures-core = "0.3.1"
+tokio = "0.2"
 rustls = "0.18"
 webpki = "0.21"
 

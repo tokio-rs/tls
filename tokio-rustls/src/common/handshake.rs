@@ -1,5 +1,4 @@
 use crate::common::{Stream, TlsState};
-use futures_core::future::FusedFuture;
 use rustls::Session;
 use std::future::Future;
 use std::pin::Pin;
@@ -19,21 +18,6 @@ pub(crate) trait IoSession {
 pub(crate) enum MidHandshake<IS> {
     Handshaking(IS),
     End,
-}
-
-impl<IS> FusedFuture for MidHandshake<IS>
-where
-    IS: IoSession + Unpin,
-    IS::Io: AsyncRead + AsyncWrite + Unpin,
-    IS::Session: Session + Unpin,
-{
-    fn is_terminated(&self) -> bool {
-        if let MidHandshake::End = self {
-            true
-        } else {
-            false
-        }
-    }
 }
 
 impl<IS> Future for MidHandshake<IS>

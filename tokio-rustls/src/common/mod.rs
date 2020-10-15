@@ -3,7 +3,6 @@ mod handshake;
 #[cfg(feature = "unstable")]
 mod vecbuf;
 
-use futures_core as futures;
 pub(crate) use handshake::{IoSession, MidHandshake};
 use rustls::Session;
 use std::io::{self, Read, Write};
@@ -316,14 +315,14 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
         self.session.flush()?;
         while self.session.wants_write() {
-            futures::ready!(self.write_io(cx))?;
+            ready!(self.write_io(cx))?;
         }
         Pin::new(&mut self.io).poll_flush(cx)
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         while self.session.wants_write() {
-            futures::ready!(self.write_io(cx))?;
+            ready!(self.write_io(cx))?;
         }
         Pin::new(&mut self.io).poll_shutdown(cx)
     }

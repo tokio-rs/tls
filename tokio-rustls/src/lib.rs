@@ -1,11 +1,19 @@
 //! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
 
+macro_rules! ready {
+    ( $e:expr ) => {
+        match $e {
+            std::task::Poll::Ready(t) => t,
+            std::task::Poll::Pending => return std::task::Poll::Pending
+        }
+    }
+}
+
 pub mod client;
 mod common;
 pub mod server;
 
 use common::{MidHandshake, Stream, TlsState};
-use futures_core::future::FusedFuture;
 use rustls::{ClientConfig, ClientSession, ServerConfig, ServerSession, Session};
 use std::future::Future;
 use std::io;
@@ -155,26 +163,12 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Connect<IO> {
     }
 }
 
-impl<IO: AsyncRead + AsyncWrite + Unpin> FusedFuture for Connect<IO> {
-    #[inline]
-    fn is_terminated(&self) -> bool {
-        self.0.is_terminated()
-    }
-}
-
 impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Accept<IO> {
     type Output = io::Result<server::TlsStream<IO>>;
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.0).poll(cx).map_err(|(err, _)| err)
-    }
-}
-
-impl<IO: AsyncRead + AsyncWrite + Unpin> FusedFuture for Accept<IO> {
-    #[inline]
-    fn is_terminated(&self) -> bool {
-        self.0.is_terminated()
     }
 }
 
@@ -187,26 +181,12 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> Future for FailableConnect<IO> {
     }
 }
 
-impl<IO: AsyncRead + AsyncWrite + Unpin> FusedFuture for FailableConnect<IO> {
-    #[inline]
-    fn is_terminated(&self) -> bool {
-        self.0.is_terminated()
-    }
-}
-
 impl<IO: AsyncRead + AsyncWrite + Unpin> Future for FailableAccept<IO> {
     type Output = Result<server::TlsStream<IO>, (io::Error, IO)>;
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.0).poll(cx)
-    }
-}
-
-impl<IO: AsyncRead + AsyncWrite + Unpin> FusedFuture for FailableAccept<IO> {
-    #[inline]
-    fn is_terminated(&self) -> bool {
-        self.0.is_terminated()
     }
 }
 

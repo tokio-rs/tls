@@ -107,7 +107,6 @@ where
         match this.state {
             #[cfg(feature = "early-data")]
             TlsState::EarlyData(ref mut pos, ref mut data) => {
-                use futures_core::ready;
                 use std::io::Write;
 
                 // write early data
@@ -153,8 +152,6 @@ where
 
         #[cfg(feature = "early-data")]
         {
-            use futures_core::ready;
-
             if let TlsState::EarlyData(ref mut pos, ref mut data) = this.state {
                 // complete handshake
                 while stream.session.is_handshaking() {
