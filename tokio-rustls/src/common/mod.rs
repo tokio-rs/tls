@@ -47,10 +47,7 @@ impl TlsState {
     #[inline]
     #[cfg(feature = "early-data")]
     pub fn is_early_data(&self) -> bool {
-        match self {
-            TlsState::EarlyData(..) => true,
-            _ => false,
-        }
+        matches!(self, TlsState::EarlyData(..))
     }
 
     #[inline]
