@@ -8,13 +8,13 @@ name = "tokio-native-tls"
 #   - README.md
 # - Update CHANGELOG.md.
 # - Create "v0.1.x" git tag.
-version = "0.1.0"
+version = "0.2.0"
 edition = "2018"
 authors = ["Tokio Contributors <team@tokio.rs>"]
 license = "MIT"
 repository = "https://github.com/tokio-rs/tls"
 homepage = "https://tokio.rs"
-documentation = "https://docs.rs/tokio-native-tls/0.1.0/tokio_native_tls/"
+documentation = "https://docs.rs/tokio-native-tls"
 description = """
 An implementation of TLS/SSL streams for Tokio using native-tls giving an implementation of TLS
 for nonblocking I/O streams.
@@ -23,11 +23,11 @@ categories = ["asynchronous", "network-programming"]
 
 [dependencies]
 native-tls = "0.2"
-tokio = { version = "0.2.0" }
+tokio = "0.3"
 
 [dev-dependencies]
-tokio = { version = "0.2.0", features = ["macros", "stream", "rt-core", "io-util", "net"] }
-tokio-util = { version = "0.2.0", features = ["full"] }
+tokio = { version = "0.3.0", features = ["macros", "stream", "rt", "rt-multi-thread", "io-util", "net"] }
+tokio-util = { version = "0.4.0", features = ["full"] }
 
 cfg-if = "0.1"
 env_logger = { version = "0.6", default-features = false }

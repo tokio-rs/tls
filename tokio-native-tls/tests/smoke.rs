@@ -29,7 +29,7 @@ lazy_static! {
 
 #[tokio::test]
 async fn client_to_server() {
-    let mut srv = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let srv = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = srv.local_addr().unwrap();
 
     let (server_tls, client_tls) = context();
@@ -69,7 +69,7 @@ async fn client_to_server() {
 #[tokio::test]
 async fn server_to_client() {
     // Create a server listening on a port, then figure out what that port is
-    let mut srv = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let srv = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = srv.local_addr().unwrap();
 
     let (server_tls, client_tls) = context();
@@ -97,7 +97,7 @@ async fn server_to_client() {
 async fn one_byte_at_a_time() {
     const AMT: usize = 1024;
 
-    let mut srv = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let srv = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = srv.local_addr().unwrap();
 
     let (server_tls, client_tls) = context();

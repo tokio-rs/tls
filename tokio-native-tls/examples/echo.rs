@@ -16,7 +16,7 @@ wget https://127.0.0.1:12345 --no-check-certificate
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Bind the server's socket
     let addr = "127.0.0.1:12345".to_string();
-    let mut tcp: TcpListener = TcpListener::bind(&addr).await?;
+    let tcp: TcpListener = TcpListener::bind(&addr).await?;
 
     // Create the TLS acceptor.
     let der = include_bytes!("identity.p12");
