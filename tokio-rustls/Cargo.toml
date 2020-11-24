@@ -13,7 +13,7 @@ edition = "2018"
 
 [dependencies]
 tokio = "0.3"
-rustls = "0.18"
+rustls = "0.19"
 webpki = "0.21"
 
 [features]
