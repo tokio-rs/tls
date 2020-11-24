@@ -1,6 +1,6 @@
 [package]
 name = "tokio-rustls"
-version = "0.20.0"
+version = "0.21.0"
 authors = ["quininer kel <quininer@live.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/tokio-rs/tls"
@@ -24,4 +24,4 @@ dangerous_configuration = ["rustls/dangerous_configuration"]
 tokio = { version = "0.3", features = ["full"] }
 futures-util = "0.3.1"
 lazy_static = "1"
-webpki-roots = "0.20"
+webpki-roots = "0.21"
