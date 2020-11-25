@@ -8,4 +8,4 @@ edition = "2018"
 tokio = { version = "0.2", features = [ "full" ] }
 argh = "0.1"
 tokio-rustls = { path = "../.." }
-webpki-roots = "0.20"
+webpki-roots = "0.21"
