@@ -2,7 +2,7 @@ mod handshake;
 
 pub(crate) use handshake::{IoSession, MidHandshake};
 use rustls::Session;
-use std::io::{self, Read, Write};
+use std::io::{self, IoSlice, Read, Write};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
@@ -127,20 +127,32 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
             cx: &'a mut Context<'b>,
         }
 
-        impl<'a, 'b, T: AsyncWrite + Unpin> Write for Writer<'a, 'b, T> {
+        impl<'a, 'b, T: Unpin> Writer<'a, 'b, T> {
             #[inline]
-            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-                match Pin::new(&mut self.io).poll_write(self.cx, buf) {
+            fn poll_with<U>(
+                &mut self,
+                f: impl FnOnce(Pin<&mut T>, &mut Context<'_>) -> Poll<io::Result<U>>,
+            ) -> io::Result<U> {
+                match f(Pin::new(&mut self.io), self.cx) {
                     Poll::Ready(result) => result,
                     Poll::Pending => Err(io::ErrorKind::WouldBlock.into()),
                 }
             }
+        }
+
+        impl<'a, 'b, T: AsyncWrite + Unpin> Write for Writer<'a, 'b, T> {
+            #[inline]
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                self.poll_with(|io, cx| io.poll_write(cx, buf))
+            }
+
+            #[inline]
+            fn write_vectored(&mut self, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
+                self.poll_with(|io, cx| io.poll_write_vectored(cx, bufs))
+            }
 
             fn flush(&mut self) -> io::Result<()> {
-                match Pin::new(&mut self.io).poll_flush(self.cx) {
-                    Poll::Ready(result) => result,
-                    Poll::Pending => Err(io::ErrorKind::WouldBlock.into()),
-                }
+                self.poll_with(|io, cx| io.poll_flush(cx))
             }
         }
 
