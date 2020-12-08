@@ -12,7 +12,7 @@ categories = ["asynchronous", "cryptography", "network-programming"]
 edition = "2018"
 
 [dependencies]
-tokio = "0.3"
+tokio = "0.3.5"
 rustls = "0.19"
 webpki = "0.21"
 
@@ -21,7 +21,7 @@ early-data = []
 dangerous_configuration = ["rustls/dangerous_configuration"]
 
 [dev-dependencies]
-tokio = { version = "0.3", features = ["full"] }
+tokio = { version = "0.3.5", features = ["full"] }
 futures-util = "0.3.1"
 lazy_static = "1"
 webpki-roots = "0.21"
