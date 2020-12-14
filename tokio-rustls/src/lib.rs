@@ -194,6 +194,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> Future for FailableAccept<IO> {
 ///
 /// This abstracts over the inner `client::TlsStream` and `server::TlsStream`, so you can use
 /// a single type to keep both client- and server-initiated TLS-encrypted connections.
+#[derive(Debug)]
 pub enum TlsStream<T> {
     Client(client::TlsStream<T>),
     Server(server::TlsStream<T>),
