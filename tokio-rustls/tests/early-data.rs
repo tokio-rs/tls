@@ -44,6 +44,7 @@ async fn send(
     //
     // see https://www.mail-archive.com/openssl-users@openssl.org/msg84451.html
     let sleep1 = sleep(Duration::from_secs(1));
+    futures_util::pin_mut!(sleep1);
     let mut stream = match future::select(Read1(stream), sleep1).await {
         future::Either::Right((_, Read1(stream))) => stream,
         future::Either::Left((Err(err), _)) => return Err(err),
