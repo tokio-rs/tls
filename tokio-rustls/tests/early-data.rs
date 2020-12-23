@@ -9,9 +9,8 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use tokio::io::ReadBuf;
+use tokio::io::{AsyncRead, AsyncWriteExt, ReadBuf};
 use tokio::net::TcpStream;
-use tokio::prelude::*;
 use tokio::time::sleep;
 use tokio_rustls::{client::TlsStream, TlsConnector};
 
