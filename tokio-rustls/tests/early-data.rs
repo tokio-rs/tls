@@ -9,9 +9,8 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use tokio::io::ReadBuf;
+use tokio::io::{AsyncRead, AsyncWriteExt, ReadBuf};
 use tokio::net::TcpStream;
-use tokio::prelude::*;
 use tokio::time::sleep;
 use tokio_rustls::{client::TlsStream, TlsConnector};
 
@@ -45,6 +44,7 @@ async fn send(
     //
     // see https://www.mail-archive.com/openssl-users@openssl.org/msg84451.html
     let sleep1 = sleep(Duration::from_secs(1));
+    futures_util::pin_mut!(sleep1);
     let mut stream = match future::select(Read1(stream), sleep1).await {
         future::Either::Right((_, Read1(stream))) => stream,
         future::Either::Left((Err(err), _)) => return Err(err),

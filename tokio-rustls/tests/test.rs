@@ -7,9 +7,8 @@ use std::net::SocketAddr;
 use std::sync::mpsc::channel;
 use std::sync::Arc;
 use std::{io, thread};
-use tokio::io::{copy, split};
+use tokio::io::{copy, split, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::prelude::*;
 use tokio::runtime;
 use tokio_rustls::{TlsAcceptor, TlsConnector};
 
