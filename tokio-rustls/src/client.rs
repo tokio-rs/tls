@@ -18,11 +18,6 @@ impl<IO> TlsStream<IO> {
     }
 
     #[inline]
-    pub fn get_mut(&mut self) -> (&mut IO, &mut ClientSession) {
-        (&mut self.io, &mut self.session)
-    }
-
-    #[inline]
     pub fn into_inner(self) -> (IO, ClientSession) {
         (self.io, self.session)
     }
