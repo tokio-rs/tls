@@ -6,7 +6,7 @@ use tokio::io::{copy, split, stdin as tokio_stdin, stdout as tokio_stdout, Async
 use tokio::net::TcpStream;
 use tokio_rustls::{client::TlsStream, rustls::ClientConfig, TlsConnector};
 
-/// Tokio Rustls client example
+/// Tokio Rustls dangle client example
 #[derive(FromArgs)]
 struct Options {
     /// host
