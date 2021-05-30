@@ -1,0 +1,12 @@
+[package]
+name = "dangle_client"
+version = "0.1.0"
+authors = ["quininer <quininer@live.com>"]
+edition = "2018"
+
+[dependencies]
+tokio = { version = "1.0", features = [ "full" ] }
+argh = "0.1"
+tokio-rustls = { path = "../.." }
+webpki-roots = "0.21"
+rustls = {version = "0.19", features = ["dangerous_configuration"]}
