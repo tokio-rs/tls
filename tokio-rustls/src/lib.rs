@@ -21,7 +21,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use webpki::DnsNameRef;
 
 pub use rustls;
 pub use webpki;

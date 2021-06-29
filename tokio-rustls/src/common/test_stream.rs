@@ -2,8 +2,8 @@ use super::Stream;
 use futures_util::future::poll_fn;
 use futures_util::task::noop_waker_ref;
 use rustls::{
-    client_config_builder_with_safe_defaults, ClientConfig, ClientConnection, Connection,
-    NoClientAuth, RootCertStore, ServerConfig, ServerConnection,
+    client_config_builder_with_safe_defaults, ClientConnection, Connection, RootCertStore,
+    ServerConnection,
 };
 use rustls_pemfile::{certs, rsa_private_keys};
 use std::io::{self, BufReader, Cursor, Read, Write};
@@ -11,7 +11,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
-use webpki::DnsNameRef;
 
 struct Good<'a>(&'a mut dyn Connection);
 
