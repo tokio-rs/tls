@@ -13,8 +13,8 @@ edition = "2018"
 
 [dependencies]
 tokio = "1.0"
-rustls = "0.19"
-webpki = "0.21"
+rustls = { git = "https://github.com/ctz/rustls" }
+webpki = "0.22"
 
 [features]
 early-data = []
@@ -24,4 +24,4 @@ dangerous_configuration = ["rustls/dangerous_configuration"]
 tokio = { version = "1.0", features = ["full"] }
 futures-util = "0.3.1"
 lazy_static = "1"
-webpki-roots = "0.21"
+webpki-roots = "0.22"
