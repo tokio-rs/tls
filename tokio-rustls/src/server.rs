@@ -1,36 +1,36 @@
 use super::*;
 use crate::common::IoSession;
-use rustls::Session;
+use rustls::Connection;
 
 /// A wrapper around an underlying raw stream which implements the TLS or SSL
 /// protocol.
 #[derive(Debug)]
 pub struct TlsStream<IO> {
     pub(crate) io: IO,
-    pub(crate) session: ServerSession,
+    pub(crate) session: ServerConnection,
     pub(crate) state: TlsState,
 }
 
 impl<IO> TlsStream<IO> {
     #[inline]
-    pub fn get_ref(&self) -> (&IO, &ServerSession) {
+    pub fn get_ref(&self) -> (&IO, &ServerConnection) {
         (&self.io, &self.session)
     }
 
     #[inline]
-    pub fn get_mut(&mut self) -> (&mut IO, &mut ServerSession) {
+    pub fn get_mut(&mut self) -> (&mut IO, &mut ServerConnection) {
         (&mut self.io, &mut self.session)
     }
 
     #[inline]
-    pub fn into_inner(self) -> (IO, ServerSession) {
+    pub fn into_inner(self) -> (IO, ServerConnection) {
         (self.io, self.session)
     }
 }
 
 impl<IO> IoSession for TlsStream<IO> {
     type Io = IO;
-    type Session = ServerSession;
+    type Session = ServerConnection;
 
     #[inline]
     fn skip_handshake(&self) -> bool {

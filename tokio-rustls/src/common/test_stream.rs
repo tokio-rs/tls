@@ -2,15 +2,17 @@ use super::Stream;
 use futures_util::future::poll_fn;
 use futures_util::task::noop_waker_ref;
 use rustls::internal::pemfile::{certs, rsa_private_keys};
-use rustls::{ClientConfig, ClientSession, NoClientAuth, ServerConfig, ServerSession, Session};
+use rustls::{
+    ClientConfig, ClientConnection, Connection, NoClientAuth, ServerConfig, ServerConnection,
+};
 use std::io::{self, BufReader, Cursor, Read, Write};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
-use webpki::DNSNameRef;
+use webpki::DnsNameRef;
 
-struct Good<'a>(&'a mut dyn Session);
+struct Good<'a>(&'a mut dyn Connection);
 
 impl<'a> AsyncRead for Good<'a> {
     fn poll_read(
@@ -221,7 +223,7 @@ async fn stream_eof() -> io::Result<()> {
     Ok(()) as io::Result<()>
 }
 
-fn make_pair() -> (ServerSession, ClientSession) {
+fn make_pair() -> (ServerConnection, ClientConnection) {
     const CERT: &str = include_str!("../../tests/end.cert");
     const CHAIN: &str = include_str!("../../tests/end.chain");
     const RSA: &str = include_str!("../../tests/end.rsa");
@@ -230,20 +232,20 @@ fn make_pair() -> (ServerSession, ClientSession) {
     let mut keys = rsa_private_keys(&mut BufReader::new(Cursor::new(RSA))).unwrap();
     let mut sconfig = ServerConfig::new(NoClientAuth::new());
     sconfig.set_single_cert(cert, keys.pop().unwrap()).unwrap();
-    let server = ServerSession::new(&Arc::new(sconfig));
+    let server = ServerConnection::new(&Arc::new(sconfig));
 
-    let domain = DNSNameRef::try_from_ascii_str("localhost").unwrap();
+    let domain = DnsNameRef::try_from_ascii_str("localhost").unwrap();
     let mut cconfig = ClientConfig::new();
     let mut chain = BufReader::new(Cursor::new(CHAIN));
     cconfig.root_store.add_pem_file(&mut chain).unwrap();
-    let client = ClientSession::new(&Arc::new(cconfig), domain);
+    let client = ClientConnection::new(&Arc::new(cconfig), domain);
 
     (server, client)
 }
 
 fn do_handshake(
-    client: &mut ClientSession,
-    server: &mut ServerSession,
+    client: &mut ClientConnection,
+    server: &mut ServerConnection,
     cx: &mut Context<'_>,
 ) -> Poll<io::Result<()>> {
     let mut good = Good(server);
