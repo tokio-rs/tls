@@ -2,7 +2,8 @@ use super::Stream;
 use futures_util::future::poll_fn;
 use futures_util::task::noop_waker_ref;
 use rustls::{
-    ClientConfig, ClientConnection, Connection, NoClientAuth, ServerConfig, ServerConnection,
+    client_config_builder_with_safe_defaults, ClientConfig, ClientConnection, Connection,
+    NoClientAuth, RootCertStore, ServerConfig, ServerConnection,
 };
 use rustls_pemfile::{certs, rsa_private_keys};
 use std::io::{self, BufReader, Cursor, Read, Write};
@@ -148,7 +149,7 @@ async fn stream_good() -> io::Result<()> {
 async fn stream_bad() -> io::Result<()> {
     let (mut server, mut client) = make_pair();
     poll_fn(|cx| do_handshake(&mut client, &mut server, cx)).await?;
-    client.set_buffer_limit(1024);
+    client.set_buffer_limit(Some(1024));
 
     let mut bad = Pending;
     let mut stream = Stream::new(&mut bad, &mut client);
@@ -224,21 +225,38 @@ async fn stream_eof() -> io::Result<()> {
 }
 
 fn make_pair() -> (ServerConnection, ClientConnection) {
+    use std::convert::TryFrom;
+
     const CERT: &str = include_str!("../../tests/end.cert");
     const CHAIN: &str = include_str!("../../tests/end.chain");
     const RSA: &str = include_str!("../../tests/end.rsa");
 
-    let cert = certs(&mut BufReader::new(Cursor::new(CERT))).unwrap();
+    let cert = certs(&mut BufReader::new(Cursor::new(CERT)))
+        .unwrap()
+        .drain(..)
+        .map(rustls::Certificate)
+        .collect();
     let mut keys = rsa_private_keys(&mut BufReader::new(Cursor::new(RSA))).unwrap();
-    let mut sconfig = ServerConfig::new(NoClientAuth::new());
-    sconfig.set_single_cert(cert, keys.pop().unwrap()).unwrap();
-    let server = ServerConnection::new(&Arc::new(sconfig));
+    let mut keys = keys.drain(..).map(rustls::PrivateKey);
+    let sconfig = rustls::server_config_builder_with_safe_defaults()
+        .with_no_client_auth()
+        .with_single_cert(cert, keys.next().unwrap())
+        .unwrap();
+    let server = ServerConnection::new(Arc::new(sconfig)).unwrap();
 
-    let domain = DnsNameRef::try_from_ascii_str("localhost").unwrap();
-    let mut cconfig = ClientConfig::new();
+    let domain = rustls::ServerName::try_from("localhost").unwrap();
+    let mut client_root_cert_store = RootCertStore::empty();
     let mut chain = BufReader::new(Cursor::new(CHAIN));
-    cconfig.root_store.add_pem_file(&mut chain).unwrap();
-    let client = ClientConnection::new(&Arc::new(cconfig), domain);
+    let certs = certs(&mut chain).unwrap();
+    let trust_anchors = certs
+        .iter()
+        .map(|cert| webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap())
+        .collect::<Vec<_>>();
+    client_root_cert_store.add_server_trust_anchors(trust_anchors.iter());
+    let cconfig = client_config_builder_with_safe_defaults()
+        .with_root_certificates(client_root_cert_store, &[])
+        .with_no_client_auth();
+    let client = ClientConnection::new(Arc::new(cconfig), domain).unwrap();
 
     (server, client)
 }
