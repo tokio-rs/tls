@@ -1,7 +1,8 @@
 use futures_util::future::TryFutureExt;
 use lazy_static::lazy_static;
-use rustls::internal::pemfile::{certs, rsa_private_keys};
-use rustls::{ClientConfig, ServerConfig};
+use rustls::ClientConfig;
+use rustls_pemfile::{certs, rsa_private_keys};
+use std::convert::TryFrom;
 use std::io::{BufReader, Cursor};
 use std::net::SocketAddr;
 use std::sync::mpsc::channel;
@@ -13,18 +14,23 @@ use tokio::runtime;
 use tokio_rustls::{TlsAcceptor, TlsConnector};
 
 const CERT: &str = include_str!("end.cert");
-const CHAIN: &str = include_str!("end.chain");
+const CHAIN: &[u8] = include_bytes!("end.chain");
 const RSA: &str = include_str!("end.rsa");
 
 lazy_static! {
-    static ref TEST_SERVER: (SocketAddr, &'static str, &'static str) = {
-        let cert = certs(&mut BufReader::new(Cursor::new(CERT))).unwrap();
+    static ref TEST_SERVER: (SocketAddr, &'static str, &'static [u8]) = {
+        let cert = certs(&mut BufReader::new(Cursor::new(CERT)))
+            .unwrap()
+            .drain(..)
+            .map(rustls::Certificate)
+            .collect();
         let mut keys = rsa_private_keys(&mut BufReader::new(Cursor::new(RSA))).unwrap();
+        let mut keys = keys.drain(..).map(rustls::PrivateKey);
 
-        let mut config = ServerConfig::new(rustls::NoClientAuth::new());
-        config
-            .set_single_cert(cert, keys.pop().unwrap())
-            .expect("invalid key or certificate");
+        let config = rustls::server_config_builder_with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(cert, keys.next().unwrap())
+            .unwrap();
         let acceptor = TlsAcceptor::from(Arc::new(config));
 
         let (send, recv) = channel();
@@ -70,14 +76,14 @@ lazy_static! {
     };
 }
 
-fn start_server() -> &'static (SocketAddr, &'static str, &'static str) {
+fn start_server() -> &'static (SocketAddr, &'static str, &'static [u8]) {
     &*TEST_SERVER
 }
 
 async fn start_client(addr: SocketAddr, domain: &str, config: Arc<ClientConfig>) -> io::Result<()> {
     const FILE: &[u8] = include_bytes!("../README.md");
 
-    let domain = webpki::DNSNameRef::try_from_ascii_str(domain).unwrap();
+    let domain = rustls::ServerName::try_from(domain).unwrap();
     let config = TlsConnector::from(config);
     let mut buf = vec![0; FILE.len()];
 
@@ -102,12 +108,19 @@ async fn pass() -> io::Result<()> {
     use std::time::*;
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    let mut config = ClientConfig::new();
-    let mut chain = BufReader::new(Cursor::new(chain));
-    config.root_store.add_pem_file(&mut chain).unwrap();
+    let chain = certs(&mut std::io::Cursor::new(*chain)).unwrap();
+    let trust_anchors = chain
+        .iter()
+        .map(|cert| webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap())
+        .collect::<Vec<_>>();
+    let mut root_store = rustls::RootCertStore::empty();
+    root_store.add_server_trust_anchors(trust_anchors.iter());
+    let config = rustls::client_config_builder_with_safe_defaults()
+        .with_root_certificates(root_store, &[])
+        .with_no_client_auth();
     let config = Arc::new(config);
 
-    start_client(*addr, domain, config.clone()).await?;
+    start_client(*addr, domain, config).await?;
 
     Ok(())
 }
@@ -116,9 +129,16 @@ async fn pass() -> io::Result<()> {
 async fn fail() -> io::Result<()> {
     let (addr, domain, chain) = start_server();
 
-    let mut config = ClientConfig::new();
-    let mut chain = BufReader::new(Cursor::new(chain));
-    config.root_store.add_pem_file(&mut chain).unwrap();
+    let chain = certs(&mut std::io::Cursor::new(*chain)).unwrap();
+    let trust_anchors = chain
+        .iter()
+        .map(|cert| webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap())
+        .collect::<Vec<_>>();
+    let mut root_store = rustls::RootCertStore::empty();
+    root_store.add_server_trust_anchors(trust_anchors.iter());
+    let config = rustls::client_config_builder_with_safe_defaults()
+        .with_root_certificates(root_store, &[])
+        .with_no_client_auth();
     let config = Arc::new(config);
 
     assert_ne!(domain, &"google.com");
