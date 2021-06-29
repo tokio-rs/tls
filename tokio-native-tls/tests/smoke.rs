@@ -123,7 +123,7 @@ async fn one_byte_at_a_time() {
             match socket.read_exact(&mut buf).await {
                 Ok(_) => data.extend_from_slice(&buf),
                 Err(ref err) if err.kind() == std::io::ErrorKind::UnexpectedEof => break,
-                Err(err) => panic!(err),
+                Err(err) => panic!("{}", err),
             }
         }
         data
