@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::io::{copy, split, stdin as tokio_stdin, stdout as tokio_stdout, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio_rustls::{rustls, TlsConnector};
+use tokio_rustls::{rustls, webpki, TlsConnector};
 
 /// Tokio Rustls client example
 #[derive(FromArgs)]
@@ -45,8 +45,11 @@ async fn main() -> io::Result<()> {
     if let Some(cafile) = &options.cafile {
         let mut pem = BufReader::new(File::open(cafile)?);
         let certs = rustls_pemfile::certs(&mut pem)?;
-        let (_added, ignored) = root_cert_store.add_parsable_certificates(&certs[..]);
-        assert_eq!(ignored, 0, "a root cert was ignored");
+        let trust_anchors = certs
+            .iter()
+            .map(|cert| webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap())
+            .collect::<Vec<_>>();
+        root_cert_store.add_server_trust_anchors(trust_anchors.iter());
     } else {
         root_cert_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0);
     }
