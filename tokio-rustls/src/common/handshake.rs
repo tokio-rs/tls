@@ -15,9 +15,10 @@ pub(crate) trait IoSession {
     fn into_io(self) -> Self::Io;
 }
 
-pub(crate) enum MidHandshake<IS> {
+pub(crate) enum MidHandshake<IS: IoSession> {
     Handshaking(IS),
     End,
+    Error { io: IS::Io, error: io::Error },
 }
 
 impl<IS> Future for MidHandshake<IS>
@@ -31,12 +32,12 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        let mut stream =
-            if let MidHandshake::Handshaking(stream) = mem::replace(this, MidHandshake::End) {
-                stream
-            } else {
-                panic!("unexpected polling after handshake")
-            };
+        let mut stream = match mem::replace(this, MidHandshake::End) {
+            MidHandshake::Handshaking(stream) => stream,
+            // Starting the handshake returned an error; fail the future immediately.
+            MidHandshake::Error { io, error } => return Poll::Ready(Err((error, io))),
+            _ => panic!("unexpected polling after handshake"),
+        };
 
         if !stream.skip_handshake() {
             let (state, io, session) = stream.get_mut();
