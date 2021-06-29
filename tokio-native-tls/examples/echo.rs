@@ -1,9 +1,7 @@
 #![warn(rust_2018_idioms)]
 
 // A tiny async TLS echo server with Tokio
-use native_tls;
 use native_tls::Identity;
-use tokio;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 

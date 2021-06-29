@@ -75,7 +75,7 @@ fn start_server() -> &'static (SocketAddr, &'static str, &'static str) {
 }
 
 async fn start_client(addr: SocketAddr, domain: &str, config: Arc<ClientConfig>) -> io::Result<()> {
-    const FILE: &'static [u8] = include_bytes!("../README.md");
+    const FILE: &[u8] = include_bytes!("../README.md");
 
     let domain = webpki::DNSNameRef::try_from_ascii_str(domain).unwrap();
     let config = TlsConnector::from(config);
@@ -107,7 +107,7 @@ async fn pass() -> io::Result<()> {
     config.root_store.add_pem_file(&mut chain).unwrap();
     let config = Arc::new(config);
 
-    start_client(addr.clone(), domain, config.clone()).await?;
+    start_client(*addr, domain, config.clone()).await?;
 
     Ok(())
 }
@@ -122,7 +122,7 @@ async fn fail() -> io::Result<()> {
     let config = Arc::new(config);
 
     assert_ne!(domain, &"google.com");
-    let ret = start_client(addr.clone(), "google.com", config).await;
+    let ret = start_client(*addr, "google.com", config).await;
     assert!(ret.is_err());
 
     Ok(())
