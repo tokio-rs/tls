@@ -1,4 +1,5 @@
 use argh::FromArgs;
+use std::convert::TryFrom;
 use std::fs::File;
 use std::io;
 use std::io::BufReader;
@@ -7,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::io::{copy, split, stdin as tokio_stdin, stdout as tokio_stdout, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio_rustls::{rustls::ClientConfig, webpki::DNSNameRef, TlsConnector};
+use tokio_rustls::{rustls, TlsConnector};
 
 /// Tokio Rustls client example
 #[derive(FromArgs)]
@@ -40,25 +41,26 @@ async fn main() -> io::Result<()> {
     let domain = options.domain.unwrap_or(options.host);
     let content = format!("GET / HTTP/1.0\r\nHost: {}\r\n\r\n", domain);
 
-    let mut config = ClientConfig::new();
+    let mut root_cert_store = rustls::RootCertStore::empty();
     if let Some(cafile) = &options.cafile {
         let mut pem = BufReader::new(File::open(cafile)?);
-        config
-            .root_store
-            .add_pem_file(&mut pem)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid cert"))?;
+        let certs = rustls_pemfile::certs(&mut pem)?;
+        let (_added, ignored) = root_cert_store.add_parsable_certificates(&certs[..]);
+        assert_eq!(ignored, 0, "a root cert was ignored");
     } else {
-        config
-            .root_store
-            .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+        root_cert_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0);
     }
+
+    let config = rustls::client_config_builder_with_safe_defaults()
+        .with_root_certificates(root_cert_store, &[])
+        .with_no_client_auth(); // i guess this was previously the default?
     let connector = TlsConnector::from(Arc::new(config));
 
     let stream = TcpStream::connect(&addr).await?;
 
     let (mut stdin, mut stdout) = (tokio_stdin(), tokio_stdout());
 
-    let domain = DNSNameRef::try_from_ascii_str(&domain)
+    let domain = rustls::ServerName::try_from(domain.as_str())
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid dnsname"))?;
 
     let mut stream = connector.connect(domain, stream).await?;
