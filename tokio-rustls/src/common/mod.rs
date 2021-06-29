@@ -241,7 +241,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
                 }
             }
 
-            return match self.session.read(buf.initialize_unfilled()) {
+            return match self.session.reader().read(buf.initialize_unfilled()) {
                 Ok(0) if prev == buf.remaining() && would_block => Poll::Pending,
                 Ok(n) => {
                     buf.advance(n);
@@ -277,7 +277,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncWrite for Strea
         while pos != buf.len() {
             let mut would_block = false;
 
-            match self.session.write(&buf[pos..]) {
+            match self.session.writer().write(&buf[pos..]) {
                 Ok(n) => pos += n,
                 Err(err) => return Poll::Ready(Err(err)),
             };
@@ -304,7 +304,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncWrite for Strea
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
-        self.session.flush()?;
+        self.session.writer().flush()?;
         while self.session.wants_write() {
             ready!(self.write_io(cx))?;
         }
