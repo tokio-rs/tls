@@ -1,4 +1,5 @@
 use argh::FromArgs;
+use rustls_pemfile::{certs, rsa_private_keys};
 use std::fs::File;
 use std::io::{self, BufReader};
 use std::net::ToSocketAddrs;
@@ -6,7 +7,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::io::{copy, sink, split, AsyncWriteExt};
 use tokio::net::TcpListener;
-use tokio_rustls::rustls::internal::pemfile::{certs, rsa_private_keys};
 use tokio_rustls::rustls::{Certificate, NoClientAuth, PrivateKey, ServerConfig};
 use tokio_rustls::TlsAcceptor;
 

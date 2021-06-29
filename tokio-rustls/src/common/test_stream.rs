@@ -1,10 +1,10 @@
 use super::Stream;
 use futures_util::future::poll_fn;
 use futures_util::task::noop_waker_ref;
-use rustls::internal::pemfile::{certs, rsa_private_keys};
 use rustls::{
     ClientConfig, ClientConnection, Connection, NoClientAuth, ServerConfig, ServerConnection,
 };
+use rustls_pemfile::{certs, rsa_private_keys};
 use std::io::{self, BufReader, Cursor, Read, Write};
 use std::pin::Pin;
 use std::sync::Arc;
