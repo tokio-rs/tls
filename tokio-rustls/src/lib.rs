@@ -80,8 +80,8 @@ impl TlsConnector {
         IO: AsyncRead + AsyncWrite + Unpin,
         F: FnOnce(&mut ClientConnection),
     {
-        let mut Connection = ClientConnection::new(&self.inner, domain);
-        f(&mut Connection);
+        let mut session = ClientConnection::new(&self.inner, domain);
+        f(&mut session);
 
         Connect(MidHandshake::Handshaking(client::TlsStream {
             io: stream,
@@ -96,7 +96,7 @@ impl TlsConnector {
                 TlsState::Stream
             },
 
-            Connection,
+            session,
         }))
     }
 }
@@ -115,11 +115,11 @@ impl TlsAcceptor {
         IO: AsyncRead + AsyncWrite + Unpin,
         F: FnOnce(&mut ServerConnection),
     {
-        let mut Connection = ServerConnection::new(&self.inner);
-        f(&mut Connection);
+        let mut session = ServerConnection::new(&self.inner);
+        f(&mut session);
 
         Accept(MidHandshake::Handshaking(server::TlsStream {
-            Connection,
+            session,
             io: stream,
             state: TlsState::Stream,
         }))
