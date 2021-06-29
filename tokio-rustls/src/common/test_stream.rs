@@ -118,7 +118,7 @@ impl AsyncWrite for Eof {
 
 #[tokio::test]
 async fn stream_good() -> io::Result<()> {
-    const FILE: &'static [u8] = include_bytes!("../../README.md");
+    const FILE: &[u8] = include_bytes!("../../README.md");
 
     let (mut server, mut client) = make_pair();
     poll_fn(|cx| do_handshake(&mut client, &mut server, cx)).await?;
