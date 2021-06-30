@@ -1,5 +1,5 @@
 # tokio-rustls
-[![github actions](https://github.com/tokio-rs/tls/workflows/Rust/badge.svg)](https://github.com/tokio-rs/tls/actions)
+[![github actions](https://github.com/tokio-rs/tls/workflows/CI/badge.svg)](https://github.com/tokio-rs/tls/actions)
 [![crates](https://img.shields.io/crates/v/tokio-rustls.svg)](https://crates.io/crates/tokio-rustls)
 [![license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/tokio-rs/tls/blob/master/tokio-rustls/LICENSE-MIT)
 [![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/tokio-rs/tls/blob/master/tokio-rustls/LICENSE-APACHE)
