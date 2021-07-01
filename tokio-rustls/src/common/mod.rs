@@ -109,7 +109,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> Stream<'a, IO, S> {
             Err(err) => return Poll::Ready(Err(err)),
         };
 
-        self.session.process_new_packets().map_err(|err| {
+        let state = self.session.process_new_packets().map_err(|err| {
             // In case we have an alert to send describing this error,
             // try a last-gasp write -- but don't predate the primary
             // error.
@@ -117,6 +117,12 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> Stream<'a, IO, S> {
 
             io::Error::new(io::ErrorKind::InvalidData, err)
         })?;
+
+        // If Rustls sets `peer_has_closed`, then the TLS peer sent a
+        // `CloseNotify` and we should set EOF.
+        if state.peer_has_closed() {
+            self.eof = true;
+        }
 
         Poll::Ready(Ok(n))
     }
@@ -252,12 +258,20 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
                         continue;
                     }
                 }
-                // The plaintext reader returns `WouldBlock` if there is no
-                // plaintext remaining to read but we haven't received a
-                // `CloseNotify`.
-                // TODO(eliza): is this right? should this really be an
-                // `UnexpectedEof` or something?
-                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Ready(Ok(())),
+
+                // Rustls may return `WouldBlock` instead of `Ok(0)` if the
+                // stream has reached EOF without receiving a `CloseNotify` from
+                // the peer. Therefore, we must determine whether a `WouldBlock`
+                // here means EOF, or if there is more data to read.
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    if prev == buf.remaining() && would_block {
+                        Poll::Pending
+                    } else if self.eof || would_block {
+                        break;
+                    } else {
+                        continue;
+                    }
+                }
                 Err(ref err)
                     if err.kind() == io::ErrorKind::ConnectionAborted
                         && prev != buf.remaining() =>
