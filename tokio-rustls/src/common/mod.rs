@@ -252,6 +252,12 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
                         continue;
                     }
                 }
+                // The plaintext reader returns `WouldBlock` if there is no
+                // plaintext remaining to read but we haven't received a
+                // `CloseNotify`.
+                // TODO(eliza): is this right? should this really be an
+                // `UnexpectedEof` or something?
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Ready(Ok(())),
                 Err(ref err)
                     if err.kind() == io::ErrorKind::ConnectionAborted
                         && prev != buf.remaining() =>
