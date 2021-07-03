@@ -214,20 +214,6 @@ impl<T> TlsStream<T> {
             }
         }
     }
-
-    pub fn get_mut(&mut self) -> (&mut T, &mut dyn Session) {
-        use TlsStream::*;
-        match self {
-            Client(io) => {
-                let (io, session) = io.get_mut();
-                (io, &mut *session)
-            }
-            Server(io) => {
-                let (io, session) = io.get_mut();
-                (io, &mut *session)
-            }
-        }
-    }
 }
 
 impl<T> From<client::TlsStream<T>> for TlsStream<T> {
