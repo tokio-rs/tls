@@ -21,6 +21,9 @@ for nonblocking I/O streams.
 """
 categories = ["asynchronous", "network-programming"]
 
+[features]
+vendored-openssl = ["native-tls/vendored"]
+
 [dependencies]
 native-tls = "0.2"
 tokio = "1.0"
