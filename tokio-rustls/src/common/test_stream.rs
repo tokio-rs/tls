@@ -52,10 +52,10 @@ impl<'a> AsyncWrite for Good<'a> {
         Poll::Ready(Ok(()))
     }
 
-    fn poll_shutdown(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         self.0.send_close_notify();
         dbg!("sent close notify");
-        Poll::Ready(Ok(()))
+        self.poll_flush(cx)
     }
 }
 
@@ -135,16 +135,13 @@ async fn stream_good() -> io::Result<()> {
         dbg!(stream.read_to_end(&mut buf).await)?;
         assert_eq!(buf, FILE);
         dbg!(stream.write_all(b"Hello World!").await)?;
-        dbg!(stream.flush().await)?;
+        stream.session.send_close_notify();
+        dbg!(stream.shutdown().await)?;
     }
 
     let mut buf = String::new();
-    let res = dbg!(server.reader().read_to_string(&mut buf));
-    assert_eq!(
-        res.unwrap_err().kind(),
-        io::ErrorKind::WouldBlock,
-        "rustls returns `WouldBlock` on EOF without close notify"
-    );
+    dbg!(server.process_new_packets()).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    dbg!(server.reader().read_to_string(&mut buf))?;
     assert_eq!(buf, "Hello World!");
 
     Ok(()) as io::Result<()>

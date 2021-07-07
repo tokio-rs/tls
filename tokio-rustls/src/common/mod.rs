@@ -232,7 +232,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
             let mut would_block = false;
 
             // read a packet
-            while self.session.wants_read() {
+            while !self.eof && self.session.wants_read() {
                 match self.read_io(cx) {
                     Poll::Ready(Ok(0)) => {
                         self.eof = true;
