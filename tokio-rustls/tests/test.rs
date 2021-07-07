@@ -27,7 +27,8 @@ lazy_static! {
         let mut keys = rsa_private_keys(&mut BufReader::new(Cursor::new(RSA))).unwrap();
         let mut keys = keys.drain(..).map(rustls::PrivateKey);
 
-        let config = rustls::server_config_builder_with_safe_defaults()
+        let config = rustls::ServerConfig::builder()
+            .with_safe_defaults()
             .with_no_client_auth()
             .with_single_cert(cert, keys.next().unwrap())
             .unwrap();
@@ -115,7 +116,8 @@ async fn pass() -> io::Result<()> {
         .collect::<Vec<_>>();
     let mut root_store = rustls::RootCertStore::empty();
     root_store.add_server_trust_anchors(trust_anchors.iter());
-    let config = rustls::client_config_builder_with_safe_defaults()
+    let config = rustls::ClientConfig::builder()
+        .with_safe_defaults()
         .with_root_certificates(root_store, &[])
         .with_no_client_auth();
     let config = Arc::new(config);
@@ -136,7 +138,8 @@ async fn fail() -> io::Result<()> {
         .collect::<Vec<_>>();
     let mut root_store = rustls::RootCertStore::empty();
     root_store.add_server_trust_anchors(trust_anchors.iter());
-    let config = rustls::client_config_builder_with_safe_defaults()
+    let config = rustls::ClientConfig::builder()
+        .with_safe_defaults()
         .with_root_certificates(root_store, &[])
         .with_no_client_auth();
     let config = Arc::new(config);

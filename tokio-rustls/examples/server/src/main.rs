@@ -55,7 +55,8 @@ async fn main() -> io::Result<()> {
     let mut keys = load_keys(&options.key)?;
     let flag_echo = options.echo_mode;
 
-    let config = rustls::server_config_builder_with_safe_defaults()
+    let config = rustls::ServerConfig::builder()
+        .with_safe_defaults()
         .with_no_client_auth()
         .with_single_cert(certs, keys.remove(0))
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;

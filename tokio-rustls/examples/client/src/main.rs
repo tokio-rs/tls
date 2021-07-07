@@ -54,7 +54,8 @@ async fn main() -> io::Result<()> {
         root_cert_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0);
     }
 
-    let config = rustls::client_config_builder_with_safe_defaults()
+    let config = rustls::ClientConfig::builder()
+        .with_safe_defaults()
         .with_root_certificates(root_cert_store, &[])
         .with_no_client_auth(); // i guess this was previously the default?
     let connector = TlsConnector::from(Arc::new(config));

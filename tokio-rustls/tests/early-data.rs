@@ -94,11 +94,10 @@ async fn test_0rtt() -> io::Result<()> {
         .collect::<Vec<_>>();
     let mut root_store = RootCertStore::empty();
     root_store.add_server_trust_anchors(trust_anchors.iter());
-    let mut config = rustls::config_builder()
+    let mut config = rustls::ClientConfig::builder()
         .with_safe_default_cipher_suites()
         .with_safe_default_kx_groups()
         .with_protocol_versions(&[&rustls::version::TLS13])
-        .for_client()
         .unwrap()
         .with_root_certificates(root_store, &[])
         .with_no_client_auth();

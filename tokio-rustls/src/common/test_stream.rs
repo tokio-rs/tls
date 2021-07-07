@@ -1,10 +1,7 @@
 use super::Stream;
 use futures_util::future::poll_fn;
 use futures_util::task::noop_waker_ref;
-use rustls::{
-    client_config_builder_with_safe_defaults, ClientConnection, Connection, RootCertStore,
-    ServerConnection,
-};
+use rustls::{ClientConnection, Connection, RootCertStore, ServerConnection};
 use rustls_pemfile::{certs, rsa_private_keys};
 use std::io::{self, BufReader, Cursor, Read, Write};
 use std::pin::Pin;
@@ -240,7 +237,8 @@ fn make_pair() -> (ServerConnection, ClientConnection) {
         .collect();
     let mut keys = rsa_private_keys(&mut BufReader::new(Cursor::new(RSA))).unwrap();
     let mut keys = keys.drain(..).map(rustls::PrivateKey);
-    let sconfig = rustls::server_config_builder_with_safe_defaults()
+    let sconfig = rustls::ServerConfig::builder()
+        .with_safe_defaults()
         .with_no_client_auth()
         .with_single_cert(cert, keys.next().unwrap())
         .unwrap();
@@ -255,7 +253,8 @@ fn make_pair() -> (ServerConnection, ClientConnection) {
         .map(|cert| webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap())
         .collect::<Vec<_>>();
     client_root_cert_store.add_server_trust_anchors(trust_anchors.iter());
-    let cconfig = client_config_builder_with_safe_defaults()
+    let cconfig = rustls::ClientConfig::builder()
+        .with_safe_defaults()
         .with_root_certificates(client_root_cert_store, &[])
         .with_no_client_auth();
     let client = ClientConnection::new(Arc::new(cconfig), domain).unwrap();
