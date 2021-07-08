@@ -1,7 +1,7 @@
 mod handshake;
 
 pub(crate) use handshake::{IoSession, MidHandshake};
-use rustls::Session;
+use rustls::Connection;
 use std::io::{self, IoSlice, Read, Write};
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -63,7 +63,7 @@ pub struct Stream<'a, IO, S> {
     pub eof: bool,
 }
 
-impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
+impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> Stream<'a, IO, S> {
     pub fn new(io: &'a mut IO, session: &'a mut S) -> Self {
         Stream {
             io,
@@ -109,7 +109,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
             Err(err) => return Poll::Ready(Err(err)),
         };
 
-        self.session.process_new_packets().map_err(|err| {
+        let state = self.session.process_new_packets().map_err(|err| {
             // In case we have an alert to send describing this error,
             // try a last-gasp write -- but don't predate the primary
             // error.
@@ -117,6 +117,12 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
 
             io::Error::new(io::ErrorKind::InvalidData, err)
         })?;
+
+        // If Rustls sets `peer_has_closed`, then the TLS peer sent a
+        // `CloseNotify` and we should set EOF.
+        if state.peer_has_closed() {
+            self.eof = true;
+        }
 
         Poll::Ready(Ok(n))
     }
@@ -214,7 +220,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> Stream<'a, IO, S> {
     }
 }
 
-impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a, IO, S> {
+impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream<'a, IO, S> {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -226,7 +232,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a
             let mut would_block = false;
 
             // read a packet
-            while self.session.wants_read() {
+            while !self.eof && self.session.wants_read() {
                 match self.read_io(cx) {
                     Poll::Ready(Ok(0)) => {
                         self.eof = true;
@@ -241,12 +247,26 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a
                 }
             }
 
-            return match self.session.read(buf.initialize_unfilled()) {
+            return match self.session.reader().read(buf.initialize_unfilled()) {
                 Ok(0) if prev == buf.remaining() && would_block => Poll::Pending,
                 Ok(n) => {
                     buf.advance(n);
 
                     if self.eof || would_block {
+                        break;
+                    } else {
+                        continue;
+                    }
+                }
+
+                // Rustls may return `WouldBlock` instead of `Ok(0)` if the
+                // stream has reached EOF without receiving a `CloseNotify` from
+                // the peer. Therefore, we must determine whether a `WouldBlock`
+                // here means EOF, or if there is more data to read.
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    if prev == buf.remaining() && would_block {
+                        Poll::Pending
+                    } else if self.eof || would_block {
                         break;
                     } else {
                         continue;
@@ -266,7 +286,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncRead for Stream<'a
     }
 }
 
-impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'a, IO, S> {
+impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncWrite for Stream<'a, IO, S> {
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context,
@@ -277,7 +297,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
         while pos != buf.len() {
             let mut would_block = false;
 
-            match self.session.write(&buf[pos..]) {
+            match self.session.writer().write(&buf[pos..]) {
                 Ok(n) => pos += n,
                 Err(err) => return Poll::Ready(Err(err)),
             };
@@ -304,7 +324,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Session> AsyncWrite for Stream<'
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
-        self.session.flush()?;
+        self.session.writer().flush()?;
         while self.session.wants_write() {
             ready!(self.write_io(cx))?;
         }
