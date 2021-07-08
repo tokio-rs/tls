@@ -68,7 +68,7 @@ where
 
                 match stream.as_mut_pin().poll_read(cx, buf) {
                     Poll::Ready(Ok(())) => {
-                        if prev == buf.remaining() {
+                        if prev == buf.remaining() || stream.eof {
                             this.state.shutdown_read();
                         }
 
