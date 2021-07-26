@@ -272,13 +272,15 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
                         continue;
                     }
                 }
-                Err(ref err)
-                    if err.kind() == io::ErrorKind::ConnectionAborted
-                        && prev != buf.remaining() =>
-                {
-                    break
+                Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {
+                    self.eof = true;
+                    if prev == buf.remaining() && would_block {
+                        Poll::Ready(Err(err))
+                    } else {
+                        break;
+                    }
                 }
-                Err(err) => Poll::Ready(Err(err)),
+                Err(err) => Poll::Ready(Err(err)), // this should be unreachable
             };
         }
 
