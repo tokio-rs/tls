@@ -1,7 +1,7 @@
 use super::Stream;
 use futures_util::future::poll_fn;
 use futures_util::task::noop_waker_ref;
-use rustls::{ClientConnection, Connection, RootCertStore, ServerConnection};
+use rustls::{ClientConnection, Connection, OwnedTrustAnchor, RootCertStore, ServerConnection};
 use rustls_pemfile::{certs, rsa_private_keys};
 use std::io::{self, BufReader, Cursor, Read, Write};
 use std::pin::Pin;
@@ -250,9 +250,16 @@ fn make_pair() -> (ServerConnection, ClientConnection) {
     let certs = certs(&mut chain).unwrap();
     let trust_anchors = certs
         .iter()
-        .map(|cert| webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap())
+        .map(|cert| {
+            let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
+            OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject,
+                ta.spki,
+                ta.name_constraints,
+            )
+        })
         .collect::<Vec<_>>();
-    client_root_cert_store.add_server_trust_anchors(trust_anchors.iter());
+    client_root_cert_store.add_server_trust_anchors(trust_anchors.into_iter());
     let cconfig = rustls::ClientConfig::builder()
         .with_safe_defaults()
         .with_root_certificates(client_root_cert_store, &[])

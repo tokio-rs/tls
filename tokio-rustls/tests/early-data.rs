@@ -15,7 +15,7 @@ use tokio::net::TcpStream;
 use tokio::time::sleep;
 use tokio_rustls::{
     client::TlsStream,
-    rustls::{self, ClientConfig},
+    rustls::{self, ClientConfig, OwnedTrustAnchor},
     TlsConnector,
 };
 
@@ -90,10 +90,17 @@ async fn test_0rtt() -> io::Result<()> {
     let certs = rustls_pemfile::certs(&mut chain).unwrap();
     let trust_anchors = certs
         .iter()
-        .map(|cert| webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap())
+        .map(|cert| {
+            let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
+            OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject,
+                ta.spki,
+                ta.name_constraints,
+            )
+        })
         .collect::<Vec<_>>();
     let mut root_store = RootCertStore::empty();
-    root_store.add_server_trust_anchors(trust_anchors.iter());
+    root_store.add_server_trust_anchors(trust_anchors.into_iter());
     let mut config = rustls::ClientConfig::builder()
         .with_safe_default_cipher_suites()
         .with_safe_default_kx_groups()
