@@ -188,6 +188,124 @@ impl TlsAcceptor {
     }
 }
 
+pub struct LazyConfigAcceptor<IO> {
+    acceptor: rustls::server::Acceptor,
+    buf: Vec<u8>,
+    used: usize,
+    io: Option<IO>,
+}
+
+impl<IO> LazyConfigAcceptor<IO>
+where
+    IO: AsyncRead + AsyncWrite + Unpin,
+{
+    #[inline]
+    pub fn new(acceptor: rustls::server::Acceptor, io: IO) -> Self {
+        Self {
+            acceptor,
+            buf: vec![0; 512],
+            used: 0,
+            io: Some(io),
+        }
+    }
+}
+
+impl<IO> Future for LazyConfigAcceptor<IO>
+where
+    IO: AsyncRead + AsyncWrite + Unpin,
+{
+    type Output = Result<StartHandshake<IO>, io::Error>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        loop {
+            let io = match this.io.as_mut() {
+                Some(io) => io,
+                None => {
+                    return Poll::Ready(Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "acceptor cannot be polled after acceptance",
+                    )))
+                }
+            };
+
+            let mut buf = ReadBuf::new(&mut this.buf);
+            buf.advance(this.used);
+            if buf.remaining() > 0 {
+                if let Err(err) = ready!(Pin::new(io).poll_read(cx, &mut buf)) {
+                    return Poll::Ready(Err(err));
+                }
+            }
+
+            let read = match this.acceptor.read_tls(&mut buf.filled()) {
+                Ok(read) => read,
+                Err(err) => return Poll::Ready(Err(err)),
+            };
+
+            let received = buf.filled().len();
+            if read < received {
+                this.buf.copy_within(read.., 0);
+                this.used = received - read;
+            } else {
+                this.used = 0;
+            }
+
+            match this.acceptor.accept() {
+                Ok(Some(accepted)) => {
+                    let io = this.io.take().unwrap();
+                    return Poll::Ready(Ok(StartHandshake { accepted, io }));
+                }
+                Ok(None) => continue,
+                Err(err) => {
+                    return Poll::Ready(Err(io::Error::new(io::ErrorKind::InvalidInput, err)))
+                }
+            }
+        }
+    }
+}
+
+pub struct StartHandshake<IO> {
+    accepted: rustls::server::Accepted,
+    io: IO,
+}
+
+impl<IO> StartHandshake<IO>
+where
+    IO: AsyncRead + AsyncWrite + Unpin,
+{
+    pub fn client_hello(&self) -> rustls::server::ClientHello<'_> {
+        self.accepted.client_hello()
+    }
+
+    pub fn into_stream(self, config: Arc<ServerConfig>) -> Accept<IO> {
+        self.into_stream_with(config, |_| ())
+    }
+
+    pub fn into_stream_with<F>(self, config: Arc<ServerConfig>, f: F) -> Accept<IO>
+    where
+        F: FnOnce(&mut ServerConnection),
+    {
+        let mut conn = match self.accepted.into_connection(config) {
+            Ok(conn) => conn,
+            Err(error) => {
+                return Accept(MidHandshake::Error {
+                    io: self.io,
+                    // TODO(eliza): should this really return an `io::Error`?
+                    // Probably not...
+                    error: io::Error::new(io::ErrorKind::Other, error),
+                });
+            }
+        };
+        f(&mut conn);
+
+        Accept(MidHandshake::Handshaking(server::TlsStream {
+            session: conn,
+            io: self.io,
+            state: TlsState::Stream,
+        }))
+    }
+}
+
 /// Future returned from `TlsConnector::connect` which will resolve
 /// once the connection handshake has finished.
 pub struct Connect<IO>(MidHandshake<client::TlsStream<IO>>);
