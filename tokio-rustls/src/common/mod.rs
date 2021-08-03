@@ -229,7 +229,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
         let prev = buf.remaining();
 
         while buf.remaining() != 0 {
-            let mut would_block = false;
+            let mut io_pending = false;
 
             // read a packet
             while !self.eof && self.session.wants_read() {
@@ -240,7 +240,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
                     }
                     Poll::Ready(Ok(_)) => (),
                     Poll::Pending => {
-                        would_block = true;
+                        io_pending = true;
                         break;
                     }
                     Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
@@ -248,11 +248,11 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
             }
 
             return match self.session.reader().read(buf.initialize_unfilled()) {
-                Ok(0) if prev == buf.remaining() && would_block => Poll::Pending,
+                Ok(0) if prev == buf.remaining() && io_pending => Poll::Pending,
                 Ok(n) => {
                     buf.advance(n);
 
-                    if self.eof || would_block {
+                    if self.eof || io_pending {
                         break;
                     } else {
                         continue;
@@ -264,9 +264,9 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
                 // the peer. Therefore, we must determine whether a `WouldBlock`
                 // here means EOF, or if there is more data to read.
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                    if prev == buf.remaining() && would_block {
+                    if prev == buf.remaining() && io_pending {
                         Poll::Pending
-                    } else if self.eof || would_block {
+                    } else if self.eof || io_pending {
                         break;
                     } else {
                         continue;
@@ -274,7 +274,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
                 }
                 Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {
                     self.eof = true;
-                    if prev == buf.remaining() && would_block {
+                    if prev == buf.remaining() && io_pending {
                         Poll::Ready(Err(err))
                     } else {
                         break;
