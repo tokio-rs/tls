@@ -53,7 +53,13 @@ async fn test_tls12() -> io::Result<()> {
     let domain = "tls-v1-2.badssl.com";
 
     let (_, output) = get(config.clone(), domain, 1012).await?;
-    assert!(output.contains("<title>tls-v1-2.badssl.com</title>"));
+    match output.contains("<title>tls-v1-2.badssl.com</title>") {
+        true => {}
+        false => {
+            eprintln!("{}", output);
+            panic!("failed badssl test")
+        }
+    }
 
     Ok(())
 }
@@ -83,7 +89,13 @@ async fn test_modern() -> io::Result<()> {
     let domain = "mozilla-modern.badssl.com";
 
     let (_, output) = get(config.clone(), domain, 443).await?;
-    assert!(output.contains("<title>mozilla-modern.badssl.com</title>"));
+    match output.contains("<title>mozilla-modern.badssl.com</title>") {
+        true => {}
+        false => {
+            eprintln!("{}", output);
+            panic!("failed badssl test")
+        }
+    }
 
     Ok(())
 }
