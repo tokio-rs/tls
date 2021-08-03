@@ -109,7 +109,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> Stream<'a, IO, S> {
             Err(err) => return Poll::Ready(Err(err)),
         };
 
-        let state = self.session.process_new_packets().map_err(|err| {
+        self.session.process_new_packets().map_err(|err| {
             // In case we have an alert to send describing this error,
             // try a last-gasp write -- but don't predate the primary
             // error.
@@ -117,12 +117,6 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> Stream<'a, IO, S> {
 
             io::Error::new(io::ErrorKind::InvalidData, err)
         })?;
-
-        // If Rustls sets `peer_has_closed`, then the TLS peer sent a
-        // `CloseNotify` and we should set EOF.
-        if state.peer_has_closed() {
-            self.eof = true;
-        }
 
         Poll::Ready(Ok(n))
     }
@@ -248,7 +242,11 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
             }
 
             return match self.session.reader().read(buf.initialize_unfilled()) {
-                Ok(0) if prev == buf.remaining() && io_pending => Poll::Pending,
+                // If Rustls returns `Ok(0)` (while `buf` is non-empty), the peer closed the
+                // connection with a `CloseNotify` message and no more data will be forthcoming.
+                Ok(0) => break,
+
+                // Rustls yielded more data: advance the buffer, then see if more data is coming.
                 Ok(n) => {
                     buf.advance(n);
 
@@ -259,10 +257,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
                     }
                 }
 
-                // Rustls may return `WouldBlock` instead of `Ok(0)` if the
-                // stream has reached EOF without receiving a `CloseNotify` from
-                // the peer. Therefore, we must determine whether a `WouldBlock`
-                // here means EOF, or if there is more data to read.
+                // Rustls doesn't have more data to yield, but it believes the connection is open.
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
                     if prev == buf.remaining() && io_pending {
                         Poll::Pending
@@ -272,15 +267,18 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
                         continue;
                     }
                 }
+
                 Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {
                     self.eof = true;
-                    if prev == buf.remaining() && io_pending {
+                    if prev == buf.remaining() {
                         Poll::Ready(Err(err))
                     } else {
                         break;
                     }
                 }
-                Err(err) => Poll::Ready(Err(err)), // this should be unreachable
+
+                // This should be unreachable.
+                Err(err) => Poll::Ready(Err(err)),
             };
         }
 
