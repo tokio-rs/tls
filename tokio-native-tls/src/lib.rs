@@ -36,6 +36,7 @@ use std::future::Future;
 use std::io::{self, Read, Write};
 use std::marker::Unpin;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::ptr::null_mut;
 use std::task::{Context, Poll};
 
@@ -71,7 +72,7 @@ pub struct TlsStream<S>(native_tls::TlsStream<AllowStd<S>>);
 /// A wrapper around a `native_tls::TlsConnector`, providing an async `connect`
 /// method.
 #[derive(Clone)]
-pub struct TlsConnector(native_tls::TlsConnector);
+pub struct TlsConnector(Arc<native_tls::TlsConnector>);
 
 /// A wrapper around a `native_tls::TlsAcceptor`, providing an async `accept`
 /// method.
@@ -302,7 +303,13 @@ impl fmt::Debug for TlsConnector {
 
 impl From<native_tls::TlsConnector> for TlsConnector {
     fn from(inner: native_tls::TlsConnector) -> TlsConnector {
-        TlsConnector(inner)
+        TlsConnector(Arc::new(inner))
+    }
+}
+
+impl From<Arc<native_tls::TlsConnector>> for TlsConnector {
+    fn from(inner: Arc<native_tls::TlsConnector>) -> TlsConnector {
+        TlsConnector(Arc::clone(&inner))
     }
 }
 
