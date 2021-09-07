@@ -13,8 +13,7 @@ edition = "2018"
 
 [dependencies]
 tokio = "1.0"
-rustls = "0.19"
-webpki = "0.22"
+rustls = "0.20.0-beta.2"
 
 [features]
 early-data = []
@@ -25,3 +24,4 @@ tokio = { version = "1.0", features = ["full"] }
 futures-util = "0.3.1"
 lazy_static = "1"
 webpki-roots = "0.22"
+webpki = "0.22"

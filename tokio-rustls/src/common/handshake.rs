@@ -1,5 +1,5 @@
 use crate::common::{Stream, TlsState};
-use rustls::Session;
+use rustls::Connection;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -24,7 +24,7 @@ impl<IS> Future for MidHandshake<IS>
 where
     IS: IoSession + Unpin,
     IS::Io: AsyncRead + AsyncWrite + Unpin,
-    IS::Session: Session + Unpin,
+    IS::Session: Connection + Unpin,
 {
     type Output = Result<IS, (io::Error, IS::Io)>;
 
