@@ -21,7 +21,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use webpki::DNSNameRef;
+use webpki::DnsNameRef;
 
 pub use rustls;
 pub use webpki;
@@ -68,14 +68,14 @@ impl TlsConnector {
     }
 
     #[inline]
-    pub fn connect<IO>(&self, domain: DNSNameRef, stream: IO) -> Connect<IO>
+    pub fn connect<IO>(&self, domain: DnsNameRef, stream: IO) -> Connect<IO>
     where
         IO: AsyncRead + AsyncWrite + Unpin,
     {
         self.connect_with(domain, stream, |_| ())
     }
 
-    pub fn connect_with<IO, F>(&self, domain: DNSNameRef, stream: IO, f: F) -> Connect<IO>
+    pub fn connect_with<IO, F>(&self, domain: DnsNameRef, stream: IO, f: F) -> Connect<IO>
     where
         IO: AsyncRead + AsyncWrite + Unpin,
         F: FnOnce(&mut ClientSession),
