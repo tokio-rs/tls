@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 
-struct Good<'a>(&'a mut dyn Connection);
+struct Good<'a>(&'a mut Connection);
 
 impl<'a> AsyncRead for Good<'a> {
     fn poll_read(
@@ -120,10 +120,12 @@ impl AsyncWrite for Eof {
 async fn stream_good() -> io::Result<()> {
     const FILE: &[u8] = include_bytes!("../../README.md");
 
-    let (mut server, mut client) = make_pair();
+    let (server, mut client) = make_pair();
+    let mut server = Connection::from(server);
     poll_fn(|cx| do_handshake(&mut client, &mut server, cx)).await?;
     io::copy(&mut Cursor::new(FILE), &mut server.writer())?;
     server.send_close_notify();
+    let mut server = Connection::from(server);
 
     {
         let mut good = Good(&mut server);
@@ -147,7 +149,8 @@ async fn stream_good() -> io::Result<()> {
 
 #[tokio::test]
 async fn stream_bad() -> io::Result<()> {
-    let (mut server, mut client) = make_pair();
+    let (server, mut client) = make_pair();
+    let mut server = Connection::from(server);
     poll_fn(|cx| do_handshake(&mut client, &mut server, cx)).await?;
     client.set_buffer_limit(Some(1024));
 
@@ -173,7 +176,8 @@ async fn stream_bad() -> io::Result<()> {
 
 #[tokio::test]
 async fn stream_handshake() -> io::Result<()> {
-    let (mut server, mut client) = make_pair();
+    let (server, mut client) = make_pair();
+    let mut server = Connection::from(server);
 
     {
         let mut good = Good(&mut server);
@@ -211,7 +215,8 @@ async fn stream_handshake_eof() -> io::Result<()> {
 
 #[tokio::test]
 async fn stream_eof() -> io::Result<()> {
-    let (mut server, mut client) = make_pair();
+    let (server, mut client) = make_pair();
+    let mut server = Connection::from(server);
     poll_fn(|cx| do_handshake(&mut client, &mut server, cx)).await?;
 
     let mut good = Good(&mut server);
@@ -275,7 +280,7 @@ fn make_pair() -> (ServerConnection, ClientConnection) {
 
 fn do_handshake(
     client: &mut ClientConnection,
-    server: &mut ServerConnection,
+    server: &mut Connection,
     cx: &mut Context<'_>,
 ) -> Poll<io::Result<()>> {
     let mut good = Good(server);

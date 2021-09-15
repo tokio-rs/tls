@@ -1,8 +1,9 @@
 mod handshake;
 
 pub(crate) use handshake::{IoSession, MidHandshake};
-use rustls::Connection;
+use rustls::{ConnectionCommon, SideData};
 use std::io::{self, IoSlice, Read, Write};
+use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
@@ -57,14 +58,18 @@ impl TlsState {
     }
 }
 
-pub struct Stream<'a, IO, S> {
+pub struct Stream<'a, IO, C> {
     pub io: &'a mut IO,
-    pub session: &'a mut S,
+    pub session: &'a mut C,
     pub eof: bool,
 }
 
-impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> Stream<'a, IO, S> {
-    pub fn new(io: &'a mut IO, session: &'a mut S) -> Self {
+impl<'a, IO: AsyncRead + AsyncWrite + Unpin, C, SD> Stream<'a, IO, C>
+where
+    C: DerefMut + Deref<Target = ConnectionCommon<SD>>,
+    SD: SideData,
+{
+    pub fn new(io: &'a mut IO, session: &'a mut C) -> Self {
         Stream {
             io,
             session,
@@ -214,7 +219,11 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> Stream<'a, IO, S> {
     }
 }
 
-impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream<'a, IO, S> {
+impl<'a, IO: AsyncRead + AsyncWrite + Unpin, C, SD> AsyncRead for Stream<'a, IO, C>
+where
+    C: DerefMut + Deref<Target = ConnectionCommon<SD>>,
+    SD: SideData,
+{
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -286,7 +295,11 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
     }
 }
 
-impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncWrite for Stream<'a, IO, S> {
+impl<'a, IO: AsyncRead + AsyncWrite + Unpin, C, SD> AsyncWrite for Stream<'a, IO, C>
+where
+    C: DerefMut + Deref<Target = ConnectionCommon<SD>>,
+    SD: SideData,
+{
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context,

@@ -14,7 +14,7 @@ mod common;
 pub mod server;
 
 use common::{MidHandshake, Stream, TlsState};
-use rustls::{ClientConfig, ClientConnection, Connection, ServerConfig, ServerConnection};
+use rustls::{ClientConfig, ClientConnection, CommonState, ServerConfig, ServerConnection};
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -220,7 +220,7 @@ pub enum TlsStream<T> {
 }
 
 impl<T> TlsStream<T> {
-    pub fn get_ref(&self) -> (&T, &dyn Connection) {
+    pub fn get_ref(&self) -> (&T, &CommonState) {
         use TlsStream::*;
         match self {
             Client(io) => {
@@ -234,7 +234,7 @@ impl<T> TlsStream<T> {
         }
     }
 
-    pub fn get_mut(&mut self) -> (&mut T, &mut dyn Connection) {
+    pub fn get_mut(&mut self) -> (&mut T, &mut CommonState) {
         use TlsStream::*;
         match self {
             Client(io) => {
