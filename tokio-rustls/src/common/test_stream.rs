@@ -271,7 +271,7 @@ fn make_pair() -> (ServerConnection, ClientConnection) {
     client_root_cert_store.add_server_trust_anchors(trust_anchors.into_iter());
     let cconfig = rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_root_certificates(client_root_cert_store, &[])
+        .with_root_certificates(client_root_cert_store)
         .with_no_client_auth();
     let client = ClientConnection::new(Arc::new(cconfig), domain).unwrap();
 

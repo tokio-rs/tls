@@ -13,7 +13,7 @@ edition = "2018"
 
 [dependencies]
 tokio = "1.0"
-rustls = { git = "https://github.com/ctz/rustls" }
+rustls = "0.20"
 webpki = "0.22"
 
 [features]

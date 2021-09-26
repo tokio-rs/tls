@@ -46,7 +46,7 @@ async fn test_tls12() -> io::Result<()> {
         .with_safe_default_kx_groups()
         .with_protocol_versions(&[&rustls::version::TLS12])
         .unwrap()
-        .with_root_certificates(root_store, &[])
+        .with_root_certificates(root_store)
         .with_no_client_auth();
 
     let config = Arc::new(config);
@@ -81,7 +81,7 @@ async fn test_modern() -> io::Result<()> {
     }));
     let config = rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_root_certificates(root_store, &[])
+        .with_root_certificates(root_store)
         .with_no_client_auth();
     let config = Arc::new(config);
     let domain = "mozilla-modern.badssl.com";

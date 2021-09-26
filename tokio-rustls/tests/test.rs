@@ -125,7 +125,7 @@ async fn pass() -> io::Result<()> {
     root_store.add_server_trust_anchors(trust_anchors.into_iter());
     let config = rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_root_certificates(root_store, &[])
+        .with_root_certificates(root_store)
         .with_no_client_auth();
     let config = Arc::new(config);
 
@@ -154,7 +154,7 @@ async fn fail() -> io::Result<()> {
     root_store.add_server_trust_anchors(trust_anchors.into_iter());
     let config = rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_root_certificates(root_store, &[])
+        .with_root_certificates(root_store)
         .with_no_client_auth();
     let config = Arc::new(config);
 

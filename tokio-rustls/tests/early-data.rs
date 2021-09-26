@@ -106,7 +106,7 @@ async fn test_0rtt() -> io::Result<()> {
         .with_safe_default_kx_groups()
         .with_protocol_versions(&[&rustls::version::TLS13])
         .unwrap()
-        .with_root_certificates(root_store, &[])
+        .with_root_certificates(root_store)
         .with_no_client_auth();
     config.enable_early_data = true;
     let config = Arc::new(config);

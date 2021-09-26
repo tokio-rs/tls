@@ -62,6 +62,7 @@ pub struct Stream<'a, IO, C> {
     pub io: &'a mut IO,
     pub session: &'a mut C,
     pub eof: bool,
+    pub unexpected_eof: bool,
 }
 
 impl<'a, IO: AsyncRead + AsyncWrite + Unpin, C, SD> Stream<'a, IO, C>
@@ -76,6 +77,7 @@ where
             // The state so far is only used to detect EOF, so either Stream
             // or EarlyData state should both be all right.
             eof: false,
+            unexpected_eof: false,
         }
     }
 
@@ -279,6 +281,7 @@ where
 
                 Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {
                     self.eof = true;
+                    self.unexpected_eof = true;
                     if prev == buf.remaining() {
                         Poll::Ready(Err(err))
                     } else {

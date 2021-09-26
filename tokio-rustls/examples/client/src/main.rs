@@ -69,7 +69,7 @@ async fn main() -> io::Result<()> {
 
     let config = rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_root_certificates(root_cert_store, &[])
+        .with_root_certificates(root_cert_store)
         .with_no_client_auth(); // i guess this was previously the default?
     let connector = TlsConnector::from(Arc::new(config));
 
