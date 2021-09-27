@@ -13,12 +13,15 @@ edition = "2018"
 
 [dependencies]
 tokio = "1.0"
-rustls = "0.20"
+rustls = { version = "0.20", default-features = false }
 webpki = "0.22"
 
 [features]
-early-data = []
+default = ["logging", "tls12"]
 dangerous_configuration = ["rustls/dangerous_configuration"]
+early-data = []
+logging = ["rustls/logging"]
+tls12 = ["rustls/tls12"]
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full"] }
