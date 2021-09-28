@@ -9,6 +9,8 @@ pub struct TlsStream<IO> {
     pub(crate) io: IO,
     pub(crate) session: ClientConnection,
     pub(crate) state: TlsState,
+
+    #[cfg(feature = "early-data")]
     pub(crate) early_waker: Option<Waker>
 }
 
