@@ -71,7 +71,11 @@ async fn send(
             Poll::Ready(Ok(())) as Poll<io::Result<_>>
         }).await?;
 
-        read_task.await?;
+        match read_task.await {
+            Ok(()) => (),
+            Err(ref err) if err.kind() == io::ErrorKind::UnexpectedEof => (),
+            Err(err) => return Err(err.into())
+        }
 
         Ok(rd) as io::Result<_>
     });
