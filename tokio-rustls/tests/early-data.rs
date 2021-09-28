@@ -10,9 +10,10 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use tokio::io::{AsyncRead, AsyncWriteExt, ReadBuf};
+use tokio::io::{split, AsyncRead, AsyncWriteExt, ReadBuf};
 use tokio::net::TcpStream;
 use tokio::time::sleep;
+use tokio::sync::oneshot;
 use tokio_rustls::{
     client::TlsStream,
     rustls::{self, ClientConfig, OwnedTrustAnchor},
@@ -26,9 +27,15 @@ impl<T: AsyncRead + Unpin> Future for Read1<T> {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut buf = [0];
-        let mut buf = &mut ReadBuf::new(&mut buf);
+        let mut buf = ReadBuf::new(&mut buf);
+
         ready!(Pin::new(&mut self.0).poll_read(cx, &mut buf))?;
-        Poll::Pending
+
+        if buf.filled().is_empty() {
+            Poll::Ready(Ok(()))
+        } else {
+            Poll::Pending
+        }
     }
 }
 
@@ -41,24 +48,43 @@ async fn send(
     let stream = TcpStream::connect(&addr).await?;
     let domain = rustls::ServerName::try_from("testserver.com").unwrap();
 
-    let mut stream = connector.connect(domain, stream).await?;
-    stream.write_all(data).await?;
-    stream.flush().await?;
+    let stream = connector.connect(domain, stream).await?;
+    let (mut rd, mut wd) = split(stream);
+    let (notify, wait) = oneshot::channel();
 
-    // sleep 1s
-    //
-    // see https://www.mail-archive.com/openssl-users@openssl.org/msg84451.html
-    let sleep1 = sleep(Duration::from_secs(1));
-    futures_util::pin_mut!(sleep1);
-    let mut stream = match future::select(Read1(stream), sleep1).await {
-        future::Either::Right((_, Read1(stream))) => stream,
-        future::Either::Left((Err(err), _)) => return Err(err),
-        future::Either::Left((Ok(_), _)) => unreachable!(),
-    };
+    let j = tokio::spawn(async move {
+        // read to eof
+        //
+        // see https://www.mail-archive.com/openssl-users@openssl.org/msg84451.html
+        let mut read_task = Read1(&mut rd);
+        let mut notify = Some(notify);
 
-    stream.shutdown().await?;
+        // read once, then write
+        //
+        // this is a regression test, see https://github.com/tokio-rs/tls/issues/54
+        future::poll_fn(|cx| {
+            let ret = Pin::new(&mut read_task).poll(cx)?;
+            assert_eq!(ret, Poll::Pending);
 
-    Ok(stream)
+            notify.take().unwrap().send(()).unwrap();
+
+            Poll::Ready(Ok(())) as Poll<io::Result<_>>
+        }).await?;
+
+        read_task.await?;
+
+        Ok(rd) as io::Result<_>
+    });
+
+    wait.await.unwrap();
+
+    wd.write_all(data).await?;
+    wd.flush().await?;
+    wd.shutdown().await?;
+
+    let rd: tokio::io::ReadHalf<_> = j.await??;
+
+    Ok(rd.unsplit(wd))
 }
 
 struct DropKill(Child);

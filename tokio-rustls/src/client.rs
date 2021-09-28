@@ -1,4 +1,5 @@
 use super::*;
+use std::task::Waker;
 use crate::common::IoSession;
 
 /// A wrapper around an underlying raw stream which implements the TLS or SSL
@@ -8,6 +9,7 @@ pub struct TlsStream<IO> {
     pub(crate) io: IO,
     pub(crate) session: ClientConnection,
     pub(crate) state: TlsState,
+    pub(crate) early_waker: Option<Waker>
 }
 
 impl<IO> TlsStream<IO> {
@@ -58,7 +60,17 @@ where
     ) -> Poll<io::Result<()>> {
         match self.state {
             #[cfg(feature = "early-data")]
-            TlsState::EarlyData(..) => Poll::Pending,
+            TlsState::EarlyData(..) => {
+                let this = self.get_mut();
+                if this.early_waker.as_ref()
+                    .filter(|waker| cx.waker().will_wake(waker))
+                    .is_none()
+                {
+                    this.early_waker = Some(cx.waker().clone());
+                }
+
+                Poll::Pending
+            },
             TlsState::Stream | TlsState::WriteShutdown => {
                 let this = self.get_mut();
                 let mut stream =
@@ -136,6 +148,11 @@ where
 
                 // end
                 this.state = TlsState::Stream;
+
+                if let Some(waker) = this.early_waker.take() {
+                    waker.wake();
+                }
+
                 stream.as_mut_pin().poll_write(cx, buf)
             }
             _ => stream.as_mut_pin().poll_write(cx, buf),
@@ -164,6 +181,10 @@ where
                 }
 
                 this.state = TlsState::Stream;
+
+                if let Some(waker) = this.early_waker.take() {
+                    waker.wake();
+                }
             }
         }
 
@@ -171,17 +192,17 @@ where
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        #[cfg(feature = "early-data")]
+        {
+            // complete handshake
+            if matches!(self.state, TlsState::EarlyData(..)) {
+                ready!(self.as_mut().poll_flush(cx))?;
+            }
+        }
+
         if self.state.writeable() {
             self.session.send_close_notify();
             self.state.shutdown_write();
-        }
-
-        #[cfg(feature = "early-data")]
-        {
-            // we skip the handshake
-            if let TlsState::EarlyData(..) = self.state {
-                return Pin::new(&mut self.io).poll_shutdown(cx);
-            }
         }
 
         let this = self.get_mut();
