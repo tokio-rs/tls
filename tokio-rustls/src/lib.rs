@@ -14,14 +14,13 @@ mod common;
 pub mod server;
 
 use common::{MidHandshake, Stream, TlsState};
-use rustls::{ClientConfig, ClientSession, ServerConfig, ServerSession, Session};
+use rustls::{ClientConfig, ClientConnection, CommonState, ServerConfig, ServerConnection};
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use webpki::DNSNameRef;
 
 pub use rustls;
 pub use webpki;
@@ -68,19 +67,29 @@ impl TlsConnector {
     }
 
     #[inline]
-    pub fn connect<IO>(&self, domain: DNSNameRef, stream: IO) -> Connect<IO>
+    pub fn connect<IO>(&self, domain: rustls::ServerName, stream: IO) -> Connect<IO>
     where
         IO: AsyncRead + AsyncWrite + Unpin,
     {
         self.connect_with(domain, stream, |_| ())
     }
 
-    pub fn connect_with<IO, F>(&self, domain: DNSNameRef, stream: IO, f: F) -> Connect<IO>
+    pub fn connect_with<IO, F>(&self, domain: rustls::ServerName, stream: IO, f: F) -> Connect<IO>
     where
         IO: AsyncRead + AsyncWrite + Unpin,
-        F: FnOnce(&mut ClientSession),
+        F: FnOnce(&mut ClientConnection),
     {
-        let mut session = ClientSession::new(&self.inner, domain);
+        let mut session = match ClientConnection::new(self.inner.clone(), domain) {
+            Ok(session) => session,
+            Err(error) => {
+                return Connect(MidHandshake::Error {
+                    io: stream,
+                    // TODO(eliza): should this really return an `io::Error`?
+                    // Probably not...
+                    error: io::Error::new(io::ErrorKind::Other, error),
+                });
+            }
+        };
         f(&mut session);
 
         Connect(MidHandshake::Handshaking(client::TlsStream {
@@ -113,9 +122,19 @@ impl TlsAcceptor {
     pub fn accept_with<IO, F>(&self, stream: IO, f: F) -> Accept<IO>
     where
         IO: AsyncRead + AsyncWrite + Unpin,
-        F: FnOnce(&mut ServerSession),
+        F: FnOnce(&mut ServerConnection),
     {
-        let mut session = ServerSession::new(&self.inner);
+        let mut session = match ServerConnection::new(self.inner.clone()) {
+            Ok(session) => session,
+            Err(error) => {
+                return Accept(MidHandshake::Error {
+                    io: stream,
+                    // TODO(eliza): should this really return an `io::Error`?
+                    // Probably not...
+                    error: io::Error::new(io::ErrorKind::Other, error),
+                });
+            }
+        };
         f(&mut session);
 
         Accept(MidHandshake::Handshaking(server::TlsStream {
@@ -201,7 +220,7 @@ pub enum TlsStream<T> {
 }
 
 impl<T> TlsStream<T> {
-    pub fn get_ref(&self) -> (&T, &dyn Session) {
+    pub fn get_ref(&self) -> (&T, &CommonState) {
         use TlsStream::*;
         match self {
             Client(io) => {
@@ -215,7 +234,7 @@ impl<T> TlsStream<T> {
         }
     }
 
-    pub fn get_mut(&mut self) -> (&mut T, &mut dyn Session) {
+    pub fn get_mut(&mut self) -> (&mut T, &mut CommonState) {
         use TlsStream::*;
         match self {
             Client(io) => {

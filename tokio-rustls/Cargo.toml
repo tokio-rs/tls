@@ -1,6 +1,6 @@
 [package]
 name = "tokio-rustls"
-version = "0.22.0"
+version = "0.23.0"
 authors = ["quininer kel <quininer@live.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/tokio-rs/tls"
@@ -13,15 +13,19 @@ edition = "2018"
 
 [dependencies]
 tokio = "1.0"
-rustls = "0.19"
-webpki = "0.21"
+rustls = { version = "0.20", default-features = false }
+webpki = "0.22"
 
 [features]
-early-data = []
+default = ["logging", "tls12"]
 dangerous_configuration = ["rustls/dangerous_configuration"]
+early-data = []
+logging = ["rustls/logging"]
+tls12 = ["rustls/tls12"]
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full"] }
 futures-util = "0.3.1"
 lazy_static = "1"
-webpki-roots = "0.21"
+webpki-roots = "0.22"
+rustls-pemfile = "0.2.1"
