@@ -8,7 +8,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::io::{copy, split, stdin as tokio_stdin, stdout as tokio_stdout, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio_rustls::{rustls, webpki, TlsConnector};
+use tokio_rustls::rustls::{self, OwnedTrustAnchor};
+use tokio_rustls::{webpki, TlsConnector};
 
 /// Tokio Rustls client example
 #[derive(FromArgs)]
@@ -45,18 +46,30 @@ async fn main() -> io::Result<()> {
     if let Some(cafile) = &options.cafile {
         let mut pem = BufReader::new(File::open(cafile)?);
         let certs = rustls_pemfile::certs(&mut pem)?;
-        let trust_anchors = certs
-            .iter()
-            .map(|cert| webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap())
-            .collect::<Vec<_>>();
-        root_cert_store.add_server_trust_anchors(trust_anchors.iter());
+        let trust_anchors = certs.iter().map(|cert| {
+            let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
+            OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject,
+                ta.spki,
+                ta.name_constraints,
+            )
+        });
+        root_cert_store.add_server_trust_anchors(trust_anchors);
     } else {
-        root_cert_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0);
+        root_cert_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(
+            |ta| {
+                OwnedTrustAnchor::from_subject_spki_name_constraints(
+                    ta.subject,
+                    ta.spki,
+                    ta.name_constraints,
+                )
+            },
+        ));
     }
 
     let config = rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_root_certificates(root_cert_store, &[])
+        .with_root_certificates(root_cert_store)
         .with_no_client_auth(); // i guess this was previously the default?
     let connector = TlsConnector::from(Arc::new(config));
 

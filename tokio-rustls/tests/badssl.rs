@@ -6,7 +6,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_rustls::{
     client::TlsStream,
-    rustls::{self, ClientConfig},
+    rustls::{self, ClientConfig, OwnedTrustAnchor},
     TlsConnector,
 };
 
@@ -34,20 +34,30 @@ async fn get(
 #[tokio::test]
 async fn test_tls12() -> io::Result<()> {
     let mut root_store = rustls::RootCertStore::empty();
-    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0);
+    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+        OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject,
+            ta.spki,
+            ta.name_constraints,
+        )
+    }));
     let config = rustls::ClientConfig::builder()
         .with_safe_default_cipher_suites()
         .with_safe_default_kx_groups()
         .with_protocol_versions(&[&rustls::version::TLS12])
         .unwrap()
-        .with_root_certificates(root_store, &[])
+        .with_root_certificates(root_store)
         .with_no_client_auth();
 
     let config = Arc::new(config);
     let domain = "tls-v1-2.badssl.com";
 
     let (_, output) = get(config.clone(), domain, 1012).await?;
-    assert!(output.contains("<title>tls-v1-2.badssl.com</title>"));
+    assert!(
+        output.contains("<title>tls-v1-2.badssl.com</title>"),
+        "failed badssl test, output: {}",
+        output
+    );
 
     Ok(())
 }
@@ -62,16 +72,26 @@ fn test_tls13() {
 #[tokio::test]
 async fn test_modern() -> io::Result<()> {
     let mut root_store = rustls::RootCertStore::empty();
-    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0);
+    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+        OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject,
+            ta.spki,
+            ta.name_constraints,
+        )
+    }));
     let config = rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_root_certificates(root_store, &[])
+        .with_root_certificates(root_store)
         .with_no_client_auth();
     let config = Arc::new(config);
     let domain = "mozilla-modern.badssl.com";
 
     let (_, output) = get(config.clone(), domain, 443).await?;
-    assert!(output.contains("<title>mozilla-modern.badssl.com</title>"));
+    assert!(
+        output.contains("<title>mozilla-modern.badssl.com</title>"),
+        "failed badssl test, output: {}",
+        output
+    );
 
     Ok(())
 }

@@ -1,6 +1,5 @@
 use super::*;
 use crate::common::IoSession;
-use rustls::Connection;
 
 /// A wrapper around an underlying raw stream which implements the TLS or SSL
 /// protocol.

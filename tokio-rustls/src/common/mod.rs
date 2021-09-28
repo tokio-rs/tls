@@ -1,8 +1,9 @@
 mod handshake;
 
 pub(crate) use handshake::{IoSession, MidHandshake};
-use rustls::Connection;
+use rustls::{ConnectionCommon, SideData};
 use std::io::{self, IoSlice, Read, Write};
+use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
@@ -57,20 +58,26 @@ impl TlsState {
     }
 }
 
-pub struct Stream<'a, IO, S> {
+pub struct Stream<'a, IO, C> {
     pub io: &'a mut IO,
-    pub session: &'a mut S,
+    pub session: &'a mut C,
     pub eof: bool,
+    pub unexpected_eof: bool,
 }
 
-impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> Stream<'a, IO, S> {
-    pub fn new(io: &'a mut IO, session: &'a mut S) -> Self {
+impl<'a, IO: AsyncRead + AsyncWrite + Unpin, C, SD> Stream<'a, IO, C>
+where
+    C: DerefMut + Deref<Target = ConnectionCommon<SD>>,
+    SD: SideData,
+{
+    pub fn new(io: &'a mut IO, session: &'a mut C) -> Self {
         Stream {
             io,
             session,
             // The state so far is only used to detect EOF, so either Stream
             // or EarlyData state should both be all right.
             eof: false,
+            unexpected_eof: false,
         }
     }
 
@@ -109,7 +116,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> Stream<'a, IO, S> {
             Err(err) => return Poll::Ready(Err(err)),
         };
 
-        let state = self.session.process_new_packets().map_err(|err| {
+        self.session.process_new_packets().map_err(|err| {
             // In case we have an alert to send describing this error,
             // try a last-gasp write -- but don't predate the primary
             // error.
@@ -117,12 +124,6 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> Stream<'a, IO, S> {
 
             io::Error::new(io::ErrorKind::InvalidData, err)
         })?;
-
-        // If Rustls sets `peer_has_closed`, then the TLS peer sent a
-        // `CloseNotify` and we should set EOF.
-        if state.peer_has_closed() {
-            self.eof = true;
-        }
 
         Poll::Ready(Ok(n))
     }
@@ -220,7 +221,11 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> Stream<'a, IO, S> {
     }
 }
 
-impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream<'a, IO, S> {
+impl<'a, IO: AsyncRead + AsyncWrite + Unpin, C, SD> AsyncRead for Stream<'a, IO, C>
+where
+    C: DerefMut + Deref<Target = ConnectionCommon<SD>>,
+    SD: SideData,
+{
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -229,7 +234,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
         let prev = buf.remaining();
 
         while buf.remaining() != 0 {
-            let mut would_block = false;
+            let mut io_pending = false;
 
             // read a packet
             while !self.eof && self.session.wants_read() {
@@ -240,7 +245,7 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
                     }
                     Poll::Ready(Ok(_)) => (),
                     Poll::Pending => {
-                        would_block = true;
+                        io_pending = true;
                         break;
                     }
                     Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
@@ -248,36 +253,43 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
             }
 
             return match self.session.reader().read(buf.initialize_unfilled()) {
-                Ok(0) if prev == buf.remaining() && would_block => Poll::Pending,
+                // If Rustls returns `Ok(0)` (while `buf` is non-empty), the peer closed the
+                // connection with a `CloseNotify` message and no more data will be forthcoming.
+                Ok(0) => break,
+
+                // Rustls yielded more data: advance the buffer, then see if more data is coming.
                 Ok(n) => {
                     buf.advance(n);
 
-                    if self.eof || would_block {
+                    if self.eof || io_pending {
                         break;
                     } else {
                         continue;
                     }
                 }
 
-                // Rustls may return `WouldBlock` instead of `Ok(0)` if the
-                // stream has reached EOF without receiving a `CloseNotify` from
-                // the peer. Therefore, we must determine whether a `WouldBlock`
-                // here means EOF, or if there is more data to read.
+                // Rustls doesn't have more data to yield, but it believes the connection is open.
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                    if prev == buf.remaining() && would_block {
+                    if prev == buf.remaining() && io_pending {
                         Poll::Pending
-                    } else if self.eof || would_block {
+                    } else if self.eof || io_pending {
                         break;
                     } else {
                         continue;
                     }
                 }
-                Err(ref err)
-                    if err.kind() == io::ErrorKind::ConnectionAborted
-                        && prev != buf.remaining() =>
-                {
-                    break
+
+                Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {
+                    self.eof = true;
+                    self.unexpected_eof = true;
+                    if prev == buf.remaining() {
+                        Poll::Ready(Err(err))
+                    } else {
+                        break;
+                    }
                 }
+
+                // This should be unreachable.
                 Err(err) => Poll::Ready(Err(err)),
             };
         }
@@ -286,7 +298,11 @@ impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncRead for Stream
     }
 }
 
-impl<'a, IO: AsyncRead + AsyncWrite + Unpin, S: Connection> AsyncWrite for Stream<'a, IO, S> {
+impl<'a, IO: AsyncRead + AsyncWrite + Unpin, C, SD> AsyncWrite for Stream<'a, IO, C>
+where
+    C: DerefMut + Deref<Target = ConnectionCommon<SD>>,
+    SD: SideData,
+{
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context,

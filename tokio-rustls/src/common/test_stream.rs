@@ -1,7 +1,7 @@
 use super::Stream;
 use futures_util::future::poll_fn;
 use futures_util::task::noop_waker_ref;
-use rustls::{ClientConnection, Connection, RootCertStore, ServerConnection};
+use rustls::{ClientConnection, Connection, OwnedTrustAnchor, RootCertStore, ServerConnection};
 use rustls_pemfile::{certs, rsa_private_keys};
 use std::io::{self, BufReader, Cursor, Read, Write};
 use std::pin::Pin;
@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 
-struct Good<'a>(&'a mut dyn Connection);
+struct Good<'a>(&'a mut Connection);
 
 impl<'a> AsyncRead for Good<'a> {
     fn poll_read(
@@ -120,9 +120,12 @@ impl AsyncWrite for Eof {
 async fn stream_good() -> io::Result<()> {
     const FILE: &[u8] = include_bytes!("../../README.md");
 
-    let (mut server, mut client) = make_pair();
+    let (server, mut client) = make_pair();
+    let mut server = Connection::from(server);
     poll_fn(|cx| do_handshake(&mut client, &mut server, cx)).await?;
     io::copy(&mut Cursor::new(FILE), &mut server.writer())?;
+    server.send_close_notify();
+    let mut server = Connection::from(server);
 
     {
         let mut good = Good(&mut server);
@@ -146,7 +149,8 @@ async fn stream_good() -> io::Result<()> {
 
 #[tokio::test]
 async fn stream_bad() -> io::Result<()> {
-    let (mut server, mut client) = make_pair();
+    let (server, mut client) = make_pair();
+    let mut server = Connection::from(server);
     poll_fn(|cx| do_handshake(&mut client, &mut server, cx)).await?;
     client.set_buffer_limit(Some(1024));
 
@@ -172,7 +176,8 @@ async fn stream_bad() -> io::Result<()> {
 
 #[tokio::test]
 async fn stream_handshake() -> io::Result<()> {
-    let (mut server, mut client) = make_pair();
+    let (server, mut client) = make_pair();
+    let mut server = Connection::from(server);
 
     {
         let mut good = Good(&mut server);
@@ -210,15 +215,19 @@ async fn stream_handshake_eof() -> io::Result<()> {
 
 #[tokio::test]
 async fn stream_eof() -> io::Result<()> {
-    let (mut server, mut client) = make_pair();
+    let (server, mut client) = make_pair();
+    let mut server = Connection::from(server);
     poll_fn(|cx| do_handshake(&mut client, &mut server, cx)).await?;
 
     let mut good = Good(&mut server);
     let mut stream = Stream::new(&mut good, &mut client).set_eof(true);
 
     let mut buf = Vec::new();
-    stream.read_to_end(&mut buf).await?;
-    assert_eq!(buf.len(), 0);
+    let result = stream.read_to_end(&mut buf).await;
+    assert_eq!(
+        result.err().map(|e| e.kind()),
+        Some(io::ErrorKind::UnexpectedEof)
+    );
 
     Ok(()) as io::Result<()>
 }
@@ -250,12 +259,19 @@ fn make_pair() -> (ServerConnection, ClientConnection) {
     let certs = certs(&mut chain).unwrap();
     let trust_anchors = certs
         .iter()
-        .map(|cert| webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap())
+        .map(|cert| {
+            let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
+            OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject,
+                ta.spki,
+                ta.name_constraints,
+            )
+        })
         .collect::<Vec<_>>();
-    client_root_cert_store.add_server_trust_anchors(trust_anchors.iter());
+    client_root_cert_store.add_server_trust_anchors(trust_anchors.into_iter());
     let cconfig = rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_root_certificates(client_root_cert_store, &[])
+        .with_root_certificates(client_root_cert_store)
         .with_no_client_auth();
     let client = ClientConnection::new(Arc::new(cconfig), domain).unwrap();
 
@@ -264,7 +280,7 @@ fn make_pair() -> (ServerConnection, ClientConnection) {
 
 fn do_handshake(
     client: &mut ClientConnection,
-    server: &mut ServerConnection,
+    server: &mut Connection,
     cx: &mut Context<'_>,
 ) -> Poll<io::Result<()>> {
     let mut good = Good(server);

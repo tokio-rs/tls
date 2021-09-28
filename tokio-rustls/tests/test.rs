@@ -1,6 +1,6 @@
 use futures_util::future::TryFutureExt;
 use lazy_static::lazy_static;
-use rustls::ClientConfig;
+use rustls::{ClientConfig, OwnedTrustAnchor};
 use rustls_pemfile::{certs, rsa_private_keys};
 use std::convert::TryFrom;
 use std::io::{BufReader, Cursor};
@@ -112,13 +112,20 @@ async fn pass() -> io::Result<()> {
     let chain = certs(&mut std::io::Cursor::new(*chain)).unwrap();
     let trust_anchors = chain
         .iter()
-        .map(|cert| webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap())
+        .map(|cert| {
+            let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
+            OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject,
+                ta.spki,
+                ta.name_constraints,
+            )
+        })
         .collect::<Vec<_>>();
     let mut root_store = rustls::RootCertStore::empty();
-    root_store.add_server_trust_anchors(trust_anchors.iter());
+    root_store.add_server_trust_anchors(trust_anchors.into_iter());
     let config = rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_root_certificates(root_store, &[])
+        .with_root_certificates(root_store)
         .with_no_client_auth();
     let config = Arc::new(config);
 
@@ -134,13 +141,20 @@ async fn fail() -> io::Result<()> {
     let chain = certs(&mut std::io::Cursor::new(*chain)).unwrap();
     let trust_anchors = chain
         .iter()
-        .map(|cert| webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap())
+        .map(|cert| {
+            let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
+            OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject,
+                ta.spki,
+                ta.name_constraints,
+            )
+        })
         .collect::<Vec<_>>();
     let mut root_store = rustls::RootCertStore::empty();
-    root_store.add_server_trust_anchors(trust_anchors.iter());
+    root_store.add_server_trust_anchors(trust_anchors.into_iter());
     let config = rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_root_certificates(root_store, &[])
+        .with_root_certificates(root_store)
         .with_no_client_auth();
     let config = Arc::new(config);
 

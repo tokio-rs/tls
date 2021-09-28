@@ -1,6 +1,7 @@
 use crate::common::{Stream, TlsState};
-use rustls::Connection;
+use rustls::{ConnectionCommon, SideData};
 use std::future::Future;
+use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{io, mem};
@@ -21,11 +22,12 @@ pub(crate) enum MidHandshake<IS: IoSession> {
     Error { io: IS::Io, error: io::Error },
 }
 
-impl<IS> Future for MidHandshake<IS>
+impl<IS, SD> Future for MidHandshake<IS>
 where
     IS: IoSession + Unpin,
     IS::Io: AsyncRead + AsyncWrite + Unpin,
-    IS::Session: Connection + Unpin,
+    IS::Session: DerefMut + Deref<Target = ConnectionCommon<SD>> + Unpin,
+    SD: SideData,
 {
     type Output = Result<IS, (io::Error, IS::Io)>;
 
