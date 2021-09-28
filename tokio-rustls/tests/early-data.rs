@@ -12,8 +12,8 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::io::{split, AsyncRead, AsyncWriteExt, ReadBuf};
 use tokio::net::TcpStream;
-use tokio::time::sleep;
 use tokio::sync::oneshot;
+use tokio::time::sleep;
 use tokio_rustls::{
     client::TlsStream,
     rustls::{self, ClientConfig, OwnedTrustAnchor},
@@ -69,12 +69,13 @@ async fn send(
             notify.take().unwrap().send(()).unwrap();
 
             Poll::Ready(Ok(())) as Poll<io::Result<_>>
-        }).await?;
+        })
+        .await?;
 
         match read_task.await {
             Ok(()) => (),
             Err(ref err) if err.kind() == io::ErrorKind::UnexpectedEof => (),
-            Err(err) => return Err(err.into())
+            Err(err) => return Err(err.into()),
         }
 
         Ok(rd) as io::Result<_>

@@ -1,5 +1,4 @@
 use super::*;
-use std::task::Waker;
 use crate::common::IoSession;
 
 /// A wrapper around an underlying raw stream which implements the TLS or SSL
@@ -11,7 +10,7 @@ pub struct TlsStream<IO> {
     pub(crate) state: TlsState,
 
     #[cfg(feature = "early-data")]
-    pub(crate) early_waker: Option<Waker>
+    pub(crate) early_waker: Option<std::task::Waker>,
 }
 
 impl<IO> TlsStream<IO> {
@@ -64,7 +63,9 @@ where
             #[cfg(feature = "early-data")]
             TlsState::EarlyData(..) => {
                 let this = self.get_mut();
-                if this.early_waker.as_ref()
+                if this
+                    .early_waker
+                    .as_ref()
                     .filter(|waker| cx.waker().will_wake(waker))
                     .is_none()
                 {
@@ -72,7 +73,7 @@ where
                 }
 
                 Poll::Pending
-            },
+            }
             TlsState::Stream | TlsState::WriteShutdown => {
                 let this = self.get_mut();
                 let mut stream =
