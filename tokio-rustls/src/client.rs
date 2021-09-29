@@ -63,6 +63,11 @@ where
             #[cfg(feature = "early-data")]
             TlsState::EarlyData(..) => {
                 let this = self.get_mut();
+
+                // At this time, we have not really established a tls connection,
+                // so we can only return to pending.
+                // In order to avoid event loss,
+                // we need to register a waker and wake it up after tls is connected.
                 if this
                     .early_waker
                     .as_ref()
