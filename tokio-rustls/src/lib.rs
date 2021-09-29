@@ -1,4 +1,35 @@
 //! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
+//!
+//! # Why do I need to call `poll_flush`?
+//!
+//! Most TLS implementations will have an internal buffer to improve throughput,
+//! and rustls is no exception.
+//!
+//! When we write data to `TlsStream`, we always write rustls buffer first,
+//! then take out rustls encrypted data packet, and write it to data channel (like TcpStream).
+//! When data channel is pending, some data may remain in rustls buffer.
+//! at this point we must call flush to write again it into data channel.
+//!
+//! `tokio-rustls` To keep it simple and correct, [TlsStream] will behave like `BufWriter`.
+//!
+//! ## Why don't we write during `poll_read`?
+//!
+//! We did this in the early days of `tokio-rustls`, but it caused some bugs.
+//! We can solve these bugs through some solutions, but this will cause performance degradation (reverse false wakeup).
+//!
+//! And reverse write will also prevent us implement full duplex in the future.
+//!
+//! see <https://github.com/tokio-rs/tls/issues/40>
+//!
+//! ## Why can't we handle it like `native-tls`?
+//!
+//! native-tls also needs to call flush, but it will be much less.
+//!
+//! When data channel returns to pending, `native-tls` will falsely report the number of bytes it consumes,
+//! which does not conform to convention of `AsyncWrite` trait.
+//! This means that if you give inconsistent data in two `poll_write`, it may cause unexpected behavior.
+//!
+//! see <https://github.com/tokio-rs/tls/issues/41>
 
 macro_rules! ready {
     ( $e:expr ) => {
