@@ -1,3 +1,6 @@
+#[cfg(unix)]
+use std::os::unix::io::{AsRawFd, RawFd};
+
 use super::*;
 use crate::common::IoSession;
 
@@ -121,5 +124,15 @@ where
         let mut stream =
             Stream::new(&mut this.io, &mut this.session).set_eof(!this.state.readable());
         stream.as_mut_pin().poll_shutdown(cx)
+    }
+}
+
+#[cfg(unix)]
+impl<IO> AsRawFd for TlsStream<IO>
+where
+    IO: AsRawFd,
+{
+    fn as_raw_fd(&self) -> RawFd {
+        self.get_ref().0.as_raw_fd()
     }
 }
