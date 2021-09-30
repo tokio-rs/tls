@@ -64,8 +64,10 @@ where
             TlsState::EarlyData(..) => {
                 let this = self.get_mut();
 
-                // At this time, we have not really established a tls connection,
-                // so we can only return to pending.
+                // In the EarlyData state, we have not really established a Tls connection.
+                // Before writing data through `AsyncWrite` and completing the tls handshake,
+                // we ignore read readiness and return to pending.
+                //
                 // In order to avoid event loss,
                 // we need to register a waker and wake it up after tls is connected.
                 if this
@@ -130,9 +132,6 @@ where
                 if let Some(mut early_data) = stream.session.early_data() {
                     let len = match early_data.write(buf) {
                         Ok(n) => n,
-                        Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                            return Poll::Pending
-                        }
                         Err(err) => return Poll::Ready(Err(err)),
                     };
                     if len != 0 {
