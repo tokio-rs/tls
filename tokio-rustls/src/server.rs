@@ -1,5 +1,7 @@
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, RawFd};
+#[cfg(window)]
+use std::os::windows::io::{AsRawHandle, RawHandle};
 
 use super::*;
 use crate::common::IoSession;
@@ -134,5 +136,15 @@ where
 {
     fn as_raw_fd(&self) -> RawFd {
         self.get_ref().0.as_raw_fd()
+    }
+}
+
+#[cfg(windows)]
+impl<IO> AsRawHandle for TlsStream<IO>
+where
+    IO: AsRawHandle,
+{
+    fn as_raw_handle(&self) -> RawHandle {
+        self.get_ref().0.as_raw_handle()
     }
 }

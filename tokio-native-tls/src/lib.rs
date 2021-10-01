@@ -37,6 +37,8 @@ use std::io::{self, Read, Write};
 use std::marker::Unpin;
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, RawFd};
+#[cfg(windows)]
+use std::os::windows::io::{AsRawHandle, RawHandle};
 use std::pin::Pin;
 use std::ptr::null_mut;
 use std::task::{Context, Poll};
@@ -224,6 +226,16 @@ where
 {
     fn as_raw_fd(&self) -> RawFd {
         self.get_ref().get_ref().get_ref().as_raw_fd()
+    }
+}
+
+#[cfg(windows)]
+impl<S> AsRawHandle for TlsStream<S>
+where
+    S: AsRawHandle,
+{
+    fn as_raw_handle(&self) -> RawHandle {
+        self.get_ref().get_ref().get_ref().as_raw_handle()
     }
 }
 
