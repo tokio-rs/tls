@@ -38,7 +38,7 @@ use std::marker::Unpin;
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(windows)]
-use std::os::windows::io::{AsRawHandle, RawHandle};
+use std::os::windows::io::{AsRawSocket, RawSocket};
 use std::pin::Pin;
 use std::ptr::null_mut;
 use std::task::{Context, Poll};
@@ -230,12 +230,12 @@ where
 }
 
 #[cfg(windows)]
-impl<S> AsRawHandle for TlsStream<S>
+impl<S> AsRawSocket for TlsStream<S>
 where
-    S: AsRawHandle,
+    S: AsRawSocket,
 {
-    fn as_raw_handle(&self) -> RawHandle {
-        self.get_ref().get_ref().get_ref().as_raw_handle()
+    fn as_raw_socket(&self) -> RawSocket {
+        self.get_ref().get_ref().get_ref().as_raw_socket()
     }
 }
 

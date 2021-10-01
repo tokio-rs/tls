@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(windows)]
-use std::os::windows::io::{AsRawHandle, RawHandle};
+use std::os::windows::io::{AsRawSocket, RawSocket};
 
 use super::*;
 use crate::common::IoSession;
@@ -140,11 +140,11 @@ where
 }
 
 #[cfg(windows)]
-impl<IO> AsRawHandle for TlsStream<IO>
+impl<IO> AsRawSocket for TlsStream<IO>
 where
-    IO: AsRawHandle,
+    IO: AsRawSocket,
 {
-    fn as_raw_handle(&self) -> RawHandle {
-        self.get_ref().0.as_raw_handle()
+    fn as_raw_socket(&self) -> RawSocket {
+        self.get_ref().0.as_raw_socket()
     }
 }
