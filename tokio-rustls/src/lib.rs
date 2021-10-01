@@ -17,6 +17,10 @@ use common::{MidHandshake, Stream, TlsState};
 use rustls::{ClientConfig, ClientConnection, CommonState, ServerConfig, ServerConnection};
 use std::future::Future;
 use std::io;
+#[cfg(unix)]
+use std::os::unix::io::{AsRawFd, RawFd};
+#[cfg(windows)]
+use std::os::windows::io::{AsRawSocket, RawSocket};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -258,6 +262,26 @@ impl<T> From<client::TlsStream<T>> for TlsStream<T> {
 impl<T> From<server::TlsStream<T>> for TlsStream<T> {
     fn from(s: server::TlsStream<T>) -> Self {
         Self::Server(s)
+    }
+}
+
+#[cfg(unix)]
+impl<S> AsRawFd for TlsStream<S>
+where
+    S: AsRawFd,
+{
+    fn as_raw_fd(&self) -> RawFd {
+        self.get_ref().0.as_raw_fd()
+    }
+}
+
+#[cfg(windows)]
+impl<S> AsRawSocket for TlsStream<S>
+where
+    S: AsRawSocket,
+{
+    fn as_raw_socket(&self) -> RawSocket {
+        self.get_ref().0.as_raw_socket()
     }
 }
 

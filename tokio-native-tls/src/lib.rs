@@ -35,6 +35,10 @@ use std::fmt;
 use std::future::Future;
 use std::io::{self, Read, Write};
 use std::marker::Unpin;
+#[cfg(unix)]
+use std::os::unix::io::{AsRawFd, RawFd};
+#[cfg(windows)]
+use std::os::windows::io::{AsRawSocket, RawSocket};
 use std::pin::Pin;
 use std::ptr::null_mut;
 use std::task::{Context, Poll};
@@ -167,18 +171,12 @@ impl<S> TlsStream<S> {
     }
 
     /// Returns a shared reference to the inner stream.
-    pub fn get_ref(&self) -> &native_tls::TlsStream<AllowStd<S>>
-    where
-        S: AsyncRead + AsyncWrite + Unpin,
-    {
+    pub fn get_ref(&self) -> &native_tls::TlsStream<AllowStd<S>> {
         &self.0
     }
 
     /// Returns a mutable reference to the inner stream.
-    pub fn get_mut(&mut self) -> &mut native_tls::TlsStream<AllowStd<S>>
-    where
-        S: AsyncRead + AsyncWrite + Unpin,
-    {
+    pub fn get_mut(&mut self) -> &mut native_tls::TlsStream<AllowStd<S>> {
         &mut self.0
     }
 }
@@ -218,6 +216,26 @@ where
 
     fn poll_shutdown(mut self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<io::Result<()>> {
         self.with_context(ctx, |s| s.shutdown())
+    }
+}
+
+#[cfg(unix)]
+impl<S> AsRawFd for TlsStream<S>
+where
+    S: AsRawFd,
+{
+    fn as_raw_fd(&self) -> RawFd {
+        self.get_ref().get_ref().get_ref().as_raw_fd()
+    }
+}
+
+#[cfg(windows)]
+impl<S> AsRawSocket for TlsStream<S>
+where
+    S: AsRawSocket,
+{
+    fn as_raw_socket(&self) -> RawSocket {
+        self.get_ref().get_ref().get_ref().as_raw_socket()
     }
 }
 
