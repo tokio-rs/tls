@@ -1,5 +1,9 @@
 use super::*;
 use crate::common::IoSession;
+#[cfg(unix)]
+use std::os::unix::io::{AsRawFd, RawFd};
+#[cfg(windows)]
+use std::os::windows::io::{AsRawSocket, RawSocket};
 
 /// A wrapper around an underlying raw stream which implements the TLS or SSL
 /// protocol.
@@ -24,6 +28,26 @@ impl<IO> TlsStream<IO> {
     #[inline]
     pub fn into_inner(self) -> (IO, ClientConnection) {
         (self.io, self.session)
+    }
+}
+
+#[cfg(unix)]
+impl<S> AsRawFd for TlsStream<S>
+where
+    S: AsRawFd,
+{
+    fn as_raw_fd(&self) -> RawFd {
+        self.get_ref().0.as_raw_fd()
+    }
+}
+
+#[cfg(windows)]
+impl<S> AsRawSocket for TlsStream<S>
+where
+    S: AsRawSocket,
+{
+    fn as_raw_socket(&self) -> RawSocket {
+        self.get_ref().0.as_raw_socket()
     }
 }
 
