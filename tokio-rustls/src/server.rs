@@ -1,6 +1,6 @@
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, RawFd};
-#[cfg(window)]
+#[cfg(windows)]
 use std::os::windows::io::{AsRawHandle, RawHandle};
 
 use super::*;
