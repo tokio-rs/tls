@@ -161,22 +161,22 @@ pub struct Connect<IO>(MidHandshake<client::TlsStream<IO>>);
 pub struct Accept<IO>(MidHandshake<server::TlsStream<IO>>);
 
 /// Like [Connect], but returns `IO` on failure.
-pub struct FailableConnect<IO>(MidHandshake<client::TlsStream<IO>>);
+pub struct FallibleConnect<IO>(MidHandshake<client::TlsStream<IO>>);
 
 /// Like [Accept], but returns `IO` on failure.
-pub struct FailableAccept<IO>(MidHandshake<server::TlsStream<IO>>);
+pub struct FallibleAccept<IO>(MidHandshake<server::TlsStream<IO>>);
 
 impl<IO> Connect<IO> {
     #[inline]
-    pub fn into_failable(self) -> FailableConnect<IO> {
-        FailableConnect(self.0)
+    pub fn into_fallible(self) -> FallibleConnect<IO> {
+        FallibleConnect(self.0)
     }
 }
 
 impl<IO> Accept<IO> {
     #[inline]
-    pub fn into_failable(self) -> FailableAccept<IO> {
-        FailableAccept(self.0)
+    pub fn into_fallible(self) -> FallibleAccept<IO> {
+        FallibleAccept(self.0)
     }
 }
 
@@ -198,7 +198,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> Future for Accept<IO> {
     }
 }
 
-impl<IO: AsyncRead + AsyncWrite + Unpin> Future for FailableConnect<IO> {
+impl<IO: AsyncRead + AsyncWrite + Unpin> Future for FallibleConnect<IO> {
     type Output = Result<client::TlsStream<IO>, (io::Error, IO)>;
 
     #[inline]
@@ -207,7 +207,7 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> Future for FailableConnect<IO> {
     }
 }
 
-impl<IO: AsyncRead + AsyncWrite + Unpin> Future for FailableAccept<IO> {
+impl<IO: AsyncRead + AsyncWrite + Unpin> Future for FallibleAccept<IO> {
     type Output = Result<server::TlsStream<IO>, (io::Error, IO)>;
 
     #[inline]
