@@ -42,7 +42,7 @@ See [examples/server](examples/server/src/main.rs). You can run it with:
 
 ```sh
 cd examples/server
-cargo run -- 127.0.0.1 --cert mycert.der --key mykey.der
+cargo run -- 127.0.0.1:8000 --cert mycert.der --key mykey.der
 ```
 
 ### License & Origin
