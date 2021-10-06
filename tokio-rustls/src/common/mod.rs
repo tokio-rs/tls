@@ -128,7 +128,7 @@ where
         if stats.peer_has_closed() && self.session.is_handshaking() {
             return Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
-                "tls handshake alert"
+                "tls handshake alert",
             )));
         }
 
