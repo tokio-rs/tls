@@ -86,19 +86,23 @@ impl AsyncWrite for Pending {
     }
 }
 
-struct Eof;
+struct Expected(Cursor<Vec<u8>>);
 
-impl AsyncRead for Eof {
+impl AsyncRead for Expected {
     fn poll_read(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
-        _: &mut ReadBuf<'_>,
+        buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+        let n = std::io::Read::read(&mut this.0, buf.initialize_unfilled())?;
+        buf.advance(n);
+
         Poll::Ready(Ok(()))
     }
 }
 
-impl AsyncWrite for Eof {
+impl AsyncWrite for Expected {
     fn poll_write(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -200,7 +204,25 @@ async fn stream_handshake() -> io::Result<()> {
 async fn stream_handshake_eof() -> io::Result<()> {
     let (_, mut client) = make_pair();
 
-    let mut bad = Eof;
+    let mut bad = Expected(Cursor::new(Vec::new()));
+    let mut stream = Stream::new(&mut bad, &mut client);
+
+    let mut cx = Context::from_waker(noop_waker_ref());
+    let r = stream.handshake(&mut cx);
+    assert_eq!(
+        r.map_err(|err| err.kind()),
+        Poll::Ready(Err(io::ErrorKind::UnexpectedEof))
+    );
+
+    Ok(()) as io::Result<()>
+}
+
+// see https://github.com/tokio-rs/tls/issues/77
+#[tokio::test]
+async fn stream_handshake_regression_issues_77() -> io::Result<()> {
+    let (_, mut client) = make_pair();
+
+    let mut bad = Expected(Cursor::new(b"\x15\x03\x01\x00\x02\x02\x00".to_vec()));
     let mut stream = Stream::new(&mut bad, &mut client);
 
     let mut cx = Context::from_waker(noop_waker_ref());
