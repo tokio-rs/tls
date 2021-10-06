@@ -116,7 +116,7 @@ where
             Err(err) => return Poll::Ready(Err(err)),
         };
 
-        self.session.process_new_packets().map_err(|err| {
+        let stats = self.session.process_new_packets().map_err(|err| {
             // In case we have an alert to send describing this error,
             // try a last-gasp write -- but don't predate the primary
             // error.
@@ -124,6 +124,13 @@ where
 
             io::Error::new(io::ErrorKind::InvalidData, err)
         })?;
+
+        if stats.peer_has_closed() && self.session.is_handshaking() {
+            return Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "tls handshake alert"
+            )));
+        }
 
         Poll::Ready(Ok(n))
     }
