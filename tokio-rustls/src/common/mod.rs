@@ -236,65 +236,49 @@ where
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        let prev = buf.remaining();
+        let mut io_pending = false;
 
-        while buf.remaining() != 0 {
-            let mut io_pending = false;
-
-            // read a packet
-            while !self.eof && self.session.wants_read() {
-                match self.read_io(cx) {
-                    Poll::Ready(Ok(0)) => {
-                        self.eof = true;
-                        break;
-                    }
-                    Poll::Ready(Ok(_)) => (),
-                    Poll::Pending => {
-                        io_pending = true;
-                        break;
-                    }
-                    Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
-                }
-            }
-
-            return match self.session.reader().read(buf.initialize_unfilled()) {
-                // If Rustls returns `Ok(0)` (while `buf` is non-empty), the peer closed the
-                // connection with a `CloseNotify` message and no more data will be forthcoming.
-                Ok(0) => break,
-
-                // Rustls yielded more data: advance the buffer, then see if more data is coming.
-                Ok(n) => {
-                    buf.advance(n);
-
-                    if self.eof || io_pending {
-                        break;
-                    } else {
-                        continue;
-                    }
-                }
-
-                // Rustls doesn't have more data to yield, but it believes the connection is open.
-                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                    if prev == buf.remaining() && io_pending {
-                        Poll::Pending
-                    } else if self.eof || io_pending {
-                        break;
-                    } else {
-                        continue;
-                    }
-                }
-
-                Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {
+        // read a packet
+        while !self.eof && self.session.wants_read() {
+            match self.read_io(cx) {
+                Poll::Ready(Ok(0)) => {
                     self.eof = true;
-                    Poll::Ready(Err(err))
+                    break;
                 }
-
-                // This should be unreachable.
-                Err(err) => Poll::Ready(Err(err)),
-            };
+                Poll::Ready(Ok(_)) => (),
+                Poll::Pending => {
+                    io_pending = true;
+                    break;
+                }
+                Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
+            }
         }
 
-        Poll::Ready(Ok(()))
+        match self.session.reader().read(buf.initialize_unfilled()) {
+            // If Rustls returns `Ok(0)` (while `buf` is non-empty), the peer closed the
+            // connection with a `CloseNotify` message and no more data will be forthcoming.
+            //
+            // Rustls yielded more data: advance the buffer, then see if more data is coming.
+            Ok(n) => {
+                buf.advance(n);
+                Poll::Ready(Ok(()))
+            }
+
+            // Rustls doesn't have more data to yield, but it believes the connection is open.
+            Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => if io_pending {
+                Poll::Pending
+            } else  {
+                Poll::Ready(Ok(()))
+            }
+
+            Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {
+                self.eof = true;
+                Poll::Ready(Err(err))
+            }
+
+            // This should be unreachable.
+            Err(err) => Poll::Ready(Err(err)),
+        }
     }
 }
 
