@@ -265,10 +265,12 @@ where
             }
 
             // Rustls doesn't have more data to yield, but it believes the connection is open.
-            Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => if io_pending {
-                Poll::Pending
-            } else  {
-                Poll::Ready(Ok(()))
+            Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                if io_pending {
+                    Poll::Pending
+                } else {
+                    Poll::Ready(Ok(()))
+                }
             }
 
             Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {

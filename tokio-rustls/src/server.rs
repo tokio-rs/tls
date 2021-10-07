@@ -81,7 +81,7 @@ where
                         this.state.shutdown_read();
                         Poll::Ready(Err(err))
                     }
-                    output => output
+                    output => output,
                 }
             }
             TlsState::ReadShutdown | TlsState::FullyShutdown => Poll::Ready(Ok(())),
