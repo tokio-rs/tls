@@ -286,7 +286,7 @@ where
 
                 Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {
                     self.eof = true;
-                    break;
+                    Poll::Ready(Err(err))
                 }
 
                 // This should be unreachable.
