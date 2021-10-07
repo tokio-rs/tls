@@ -245,11 +245,8 @@ async fn stream_eof() -> io::Result<()> {
     let mut stream = Stream::new(&mut good, &mut client).set_eof(true);
 
     let mut buf = Vec::new();
-    let result = stream.read_to_end(&mut buf).await;
-    assert_eq!(
-        result.err().map(|e| e.kind()),
-        Some(io::ErrorKind::UnexpectedEof)
-    );
+    stream.read_to_end(&mut buf).await?;
+    assert!(buf.is_empty());
 
     Ok(()) as io::Result<()>
 }
