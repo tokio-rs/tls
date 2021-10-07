@@ -127,8 +127,10 @@ async fn stream_good() -> io::Result<()> {
     let (server, mut client) = make_pair();
     let mut server = Connection::from(server);
     poll_fn(|cx| do_handshake(&mut client, &mut server, cx)).await?;
+
     io::copy(&mut Cursor::new(FILE), &mut server.writer())?;
     server.send_close_notify();
+
     let mut server = Connection::from(server);
 
     {
@@ -138,8 +140,10 @@ async fn stream_good() -> io::Result<()> {
         let mut buf = Vec::new();
         dbg!(stream.read_to_end(&mut buf).await)?;
         assert_eq!(buf, FILE);
+
         dbg!(stream.write_all(b"Hello World!").await)?;
         stream.session.send_close_notify();
+
         dbg!(stream.shutdown().await)?;
     }
 
@@ -241,8 +245,8 @@ async fn stream_eof() -> io::Result<()> {
     let mut server = Connection::from(server);
     poll_fn(|cx| do_handshake(&mut client, &mut server, cx)).await?;
 
-    let mut good = Good(&mut server);
-    let mut stream = Stream::new(&mut good, &mut client).set_eof(true);
+    let mut bad = Expected(Cursor::new(Vec::new()));
+    let mut stream = Stream::new(&mut bad, &mut client);
 
     let mut buf = Vec::new();
     let result = stream.read_to_end(&mut buf).await;
