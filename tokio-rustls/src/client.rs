@@ -119,9 +119,9 @@ where
 
                         Poll::Ready(Ok(()))
                     }
-                    Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::ConnectionAborted => {
+                    Poll::Ready(Err(err)) if err.kind() == io::ErrorKind::ConnectionAborted => {
                         this.state.shutdown_read();
-                        Poll::Ready(Ok(()))
+                        Poll::Ready(Err(err))
                     }
                     output => output,
                 }
