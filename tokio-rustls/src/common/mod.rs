@@ -242,7 +242,6 @@ where
         while !self.eof && self.session.wants_read() {
             match self.read_io(cx) {
                 Poll::Ready(Ok(0)) => {
-                    self.eof = true;
                     break;
                 }
                 Poll::Ready(Ok(_)) => (),
@@ -266,19 +265,11 @@ where
 
             // Rustls doesn't have more data to yield, but it believes the connection is open.
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                if io_pending {
-                    Poll::Pending
-                } else {
-                    Poll::Ready(Ok(()))
-                }
+                assert!(io_pending, "rustls unexpectedly would block");
+
+                Poll::Pending
             }
 
-            Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {
-                self.eof = true;
-                Poll::Ready(Err(err))
-            }
-
-            // This should be unreachable.
             Err(err) => Poll::Ready(Err(err)),
         }
     }
