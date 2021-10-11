@@ -258,6 +258,8 @@ where
             // connection with a `CloseNotify` message and no more data will be forthcoming.
             //
             // Rustls yielded more data: advance the buffer, then see if more data is coming.
+            //
+            // We don't need to modify `self.eof` here, because it is only a temporary mark.
             Ok(n) => {
                 buf.advance(n);
                 Poll::Ready(Ok(()))
@@ -265,7 +267,13 @@ where
 
             // Rustls doesn't have more data to yield, but it believes the connection is open.
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                assert!(io_pending, "rustls unexpectedly would block");
+                if !io_pending {
+                    // In theory it will not happen, but if it does, we can try again.
+                    //
+                    // If the rustls state is abnormal, it may cause a cyclic wakeup.
+                    // but tokio's cooperative budget will prevent infinite wakeup.
+                    cx.waker().wake_by_ref();
+                }
 
                 Poll::Pending
             }
