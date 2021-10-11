@@ -260,6 +260,8 @@ where
             // Rustls yielded more data: advance the buffer, then see if more data is coming.
             //
             // We don't need to modify `self.eof` here, because it is only a temporary mark.
+            // rustls will only return 0 if is has received `CloseNotify`,
+            // in which case no additional processing is required.
             Ok(n) => {
                 buf.advance(n);
                 Poll::Ready(Ok(()))
@@ -268,7 +270,8 @@ where
             // Rustls doesn't have more data to yield, but it believes the connection is open.
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
                 if !io_pending {
-                    // In theory it will not happen, but if it does, we can try again.
+                    // If `wants_read()` is satisfied, rustls will not return `WouldBlock`.
+                    // but if it does, we can try again.
                     //
                     // If the rustls state is abnormal, it may cause a cyclic wakeup.
                     // but tokio's cooperative budget will prevent infinite wakeup.
