@@ -8,9 +8,13 @@
 //! When we write data to `TlsStream`, we always write rustls buffer first,
 //! then take out rustls encrypted data packet, and write it to data channel (like TcpStream).
 //! When data channel is pending, some data may remain in rustls buffer.
-//! at this point we must call flush to write again it into data channel.
 //!
 //! `tokio-rustls` To keep it simple and correct, [TlsStream] will behave like `BufWriter`.
+//! For `TlsStream<TcpStream>`, this means that data written by `poll_write` is not guaranteed to be written to `TcpStream`.
+//! You must call `poll_flush` to ensure that it is written to `TcpStream`.
+//!
+//! You should call `poll_flush` at the appropriate time,
+//! such as when a period of `poll_write` write is complete and there is no more data to write.
 //!
 //! ## Why don't we write during `poll_read`?
 //!
@@ -23,10 +27,11 @@
 //!
 //! ## Why can't we handle it like `native-tls`?
 //!
-//! native-tls also needs to call flush, but it will be much less.
+//! When data channel returns to pending, `native-tls` will falsely report the number of bytes it consumes.
+//! This means that if data written by `poll_write` is not actually written to data channel, it will not return `Ready`.
+//! Thus avoiding the call of `poll_flush`.
 //!
-//! When data channel returns to pending, `native-tls` will falsely report the number of bytes it consumes,
-//! which does not conform to convention of `AsyncWrite` trait.
+//! but which does not conform to convention of `AsyncWrite` trait.
 //! This means that if you give inconsistent data in two `poll_write`, it may cause unexpected behavior.
 //!
 //! see <https://github.com/tokio-rs/tls/issues/41>
