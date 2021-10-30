@@ -1,11 +1,9 @@
 use super::Stream;
 use futures_util::future::poll_fn;
 use futures_util::task::noop_waker_ref;
-use rustls::{ClientConnection, Connection, OwnedTrustAnchor, RootCertStore, ServerConnection};
-use rustls_pemfile::{certs, rsa_private_keys};
-use std::io::{self, BufReader, Cursor, Read, Write};
+use rustls::{ClientConnection, Connection, ServerConnection};
+use std::io::{self, Cursor, Read, Write};
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 
@@ -261,45 +259,11 @@ async fn stream_eof() -> io::Result<()> {
 fn make_pair() -> (ServerConnection, ClientConnection) {
     use std::convert::TryFrom;
 
-    const CERT: &str = include_str!("../../tests/end.cert");
-    const CHAIN: &str = include_str!("../../tests/end.chain");
-    const RSA: &str = include_str!("../../tests/end.rsa");
-
-    let cert = certs(&mut BufReader::new(Cursor::new(CERT)))
-        .unwrap()
-        .drain(..)
-        .map(rustls::Certificate)
-        .collect();
-    let mut keys = rsa_private_keys(&mut BufReader::new(Cursor::new(RSA))).unwrap();
-    let mut keys = keys.drain(..).map(rustls::PrivateKey);
-    let sconfig = rustls::ServerConfig::builder()
-        .with_safe_defaults()
-        .with_no_client_auth()
-        .with_single_cert(cert, keys.next().unwrap())
-        .unwrap();
-    let server = ServerConnection::new(Arc::new(sconfig)).unwrap();
+    let (sconfig, cconfig) = utils::make_configs();
+    let server = ServerConnection::new(sconfig).unwrap();
 
     let domain = rustls::ServerName::try_from("localhost").unwrap();
-    let mut client_root_cert_store = RootCertStore::empty();
-    let mut chain = BufReader::new(Cursor::new(CHAIN));
-    let certs = certs(&mut chain).unwrap();
-    let trust_anchors = certs
-        .iter()
-        .map(|cert| {
-            let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
-            OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject,
-                ta.spki,
-                ta.name_constraints,
-            )
-        })
-        .collect::<Vec<_>>();
-    client_root_cert_store.add_server_trust_anchors(trust_anchors.into_iter());
-    let cconfig = rustls::ClientConfig::builder()
-        .with_safe_defaults()
-        .with_root_certificates(client_root_cert_store)
-        .with_no_client_auth();
-    let client = ClientConnection::new(Arc::new(cconfig), domain).unwrap();
+    let client = ClientConnection::new(cconfig, domain).unwrap();
 
     (server, client)
 }
@@ -322,3 +286,6 @@ fn do_handshake(
 
     Poll::Ready(Ok(()))
 }
+
+// Share `utils` module with integration tests
+include!("../../tests/utils.rs");
