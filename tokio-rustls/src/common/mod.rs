@@ -328,6 +328,8 @@ where
 
 /// An adaptor that implements a [`Read`] interface for [`AsyncRead`] types and an
 /// associated [`Context`].
+///
+/// Turns `Poll::Pending` into `WouldBlock`.
 pub struct Reader<'a, 'b, T> {
     pub io: &'a mut T,
     pub cx: &'a mut Context<'b>,
