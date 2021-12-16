@@ -89,23 +89,6 @@ where
     }
 
     pub fn read_io(&mut self, cx: &mut Context) -> Poll<io::Result<usize>> {
-        struct Reader<'a, 'b, T> {
-            io: &'a mut T,
-            cx: &'a mut Context<'b>,
-        }
-
-        impl<'a, 'b, T: AsyncRead + Unpin> Read for Reader<'a, 'b, T> {
-            #[inline]
-            fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-                let mut buf = ReadBuf::new(buf);
-                match Pin::new(&mut self.io).poll_read(self.cx, &mut buf) {
-                    Poll::Ready(Ok(())) => Ok(buf.filled().len()),
-                    Poll::Ready(Err(err)) => Err(err),
-                    Poll::Pending => Err(io::ErrorKind::WouldBlock.into()),
-                }
-            }
-        }
-
         let mut reader = Reader { io: self.io, cx };
 
         let n = match self.session.read_tls(&mut reader) {
@@ -340,6 +323,25 @@ where
             ready!(self.write_io(cx))?;
         }
         Pin::new(&mut self.io).poll_shutdown(cx)
+    }
+}
+
+/// An adaptor that implements a [`Read`] interface for [`AsyncRead`] types and an
+/// associated [`Context`].
+pub struct Reader<'a, 'b, T> {
+    pub io: &'a mut T,
+    pub cx: &'a mut Context<'b>,
+}
+
+impl<'a, 'b, T: AsyncRead + Unpin> Read for Reader<'a, 'b, T> {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let mut buf = ReadBuf::new(buf);
+        match Pin::new(&mut self.io).poll_read(self.cx, &mut buf) {
+            Poll::Ready(Ok(())) => Ok(buf.filled().len()),
+            Poll::Ready(Err(err)) => Err(err),
+            Poll::Pending => Err(io::ErrorKind::WouldBlock.into()),
+        }
     }
 }
 

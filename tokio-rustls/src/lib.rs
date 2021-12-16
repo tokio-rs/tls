@@ -190,8 +190,6 @@ impl TlsAcceptor {
 
 pub struct LazyConfigAcceptor<IO> {
     acceptor: rustls::server::Acceptor,
-    buf: Vec<u8>,
-    used: usize,
     io: Option<IO>,
 }
 
@@ -203,8 +201,6 @@ where
     pub fn new(acceptor: rustls::server::Acceptor, io: IO) -> Self {
         Self {
             acceptor,
-            buf: vec![0; 512],
-            used: 0,
             io: Some(io),
         }
     }
@@ -229,25 +225,12 @@ where
                 }
             };
 
-            let mut buf = ReadBuf::new(&mut this.buf);
-            buf.advance(this.used);
-            if buf.remaining() > 0 {
-                if let Err(err) = ready!(Pin::new(io).poll_read(cx, &mut buf)) {
-                    return Poll::Ready(Err(err));
-                }
-            }
-
-            let read = match this.acceptor.read_tls(&mut buf.filled()) {
-                Ok(read) => read,
-                Err(err) => return Poll::Ready(Err(err)),
-            };
-
-            let received = buf.filled().len();
-            if read < received {
-                this.buf.copy_within(read.., 0);
-                this.used = received - read;
-            } else {
-                this.used = 0;
+            let mut reader = common::Reader { io, cx };
+            match this.acceptor.read_tls(&mut reader) {
+                Ok(0) => return Err(io::ErrorKind::UnexpectedEof.into()).into(),
+                Ok(_) => {}
+                Err(e) if e.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,
+                Err(e) => return Err(e).into(),
             }
 
             match this.acceptor.accept() {
