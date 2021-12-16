@@ -3,14 +3,15 @@ use lazy_static::lazy_static;
 use rustls::{ClientConfig, OwnedTrustAnchor};
 use rustls_pemfile::{certs, rsa_private_keys};
 use std::convert::TryFrom;
-use std::io::{BufReader, Cursor};
+use std::io::{BufReader, Cursor, ErrorKind};
 use std::net::SocketAddr;
 use std::sync::mpsc::channel;
 use std::sync::Arc;
+use std::time::Duration;
 use std::{io, thread};
 use tokio::io::{copy, split, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::runtime;
+use tokio::{runtime, time};
 use tokio_rustls::{LazyConfigAcceptor, TlsAcceptor, TlsConnector};
 
 const CERT: &str = include_str!("end.cert");
@@ -200,6 +201,24 @@ async fn test_lazy_config_acceptor() -> io::Result<()> {
 
     stream.write_all(b"bye").await.unwrap();
     Ok(())
+}
+
+// This test is a follow-up from https://github.com/tokio-rs/tls/issues/85
+#[tokio::test]
+async fn lazy_config_acceptor_eof() {
+    let buf = Cursor::new(Vec::new());
+    let acceptor = LazyConfigAcceptor::new(rustls::server::Acceptor::new().unwrap(), buf);
+
+    let accept_result = match time::timeout(Duration::from_secs(3), acceptor).await {
+        Ok(res) => res,
+        Err(_elapsed) => panic!("timeout"),
+    };
+
+    match accept_result {
+        Ok(_) => panic!("accepted a connection from zero bytes of data"),
+        Err(e) if e.kind() == ErrorKind::UnexpectedEof => {}
+        Err(e) => panic!("unexpected error: {:?}", e),
+    }
 }
 
 // Include `utils` module
