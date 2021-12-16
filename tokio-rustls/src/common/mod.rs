@@ -128,7 +128,7 @@ where
                 &mut self,
                 f: impl FnOnce(Pin<&mut T>, &mut Context<'_>) -> Poll<io::Result<U>>,
             ) -> io::Result<U> {
-                match f(Pin::new(&mut self.io), self.cx) {
+                match f(Pin::new(self.io), self.cx) {
                     Poll::Ready(result) => result,
                     Poll::Pending => Err(io::ErrorKind::WouldBlock.into()),
                 }
