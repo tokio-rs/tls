@@ -89,7 +89,7 @@ where
     }
 
     pub fn read_io(&mut self, cx: &mut Context) -> Poll<io::Result<usize>> {
-        let mut reader = Reader { io: self.io, cx };
+        let mut reader = SyncReadAdapter { io: self.io, cx };
 
         let n = match self.session.read_tls(&mut reader) {
             Ok(n) => n,
@@ -326,16 +326,16 @@ where
     }
 }
 
-/// An adaptor that implements a [`Read`] interface for [`AsyncRead`] types and an
+/// An adapter that implements a [`Read`] interface for [`AsyncRead`] types and an
 /// associated [`Context`].
 ///
 /// Turns `Poll::Pending` into `WouldBlock`.
-pub struct Reader<'a, 'b, T> {
+pub struct SyncReadAdapter<'a, 'b, T> {
     pub io: &'a mut T,
     pub cx: &'a mut Context<'b>,
 }
 
-impl<'a, 'b, T: AsyncRead + Unpin> Read for Reader<'a, 'b, T> {
+impl<'a, 'b, T: AsyncRead + Unpin> Read for SyncReadAdapter<'a, 'b, T> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let mut buf = ReadBuf::new(buf);

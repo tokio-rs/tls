@@ -225,7 +225,7 @@ where
                 }
             };
 
-            let mut reader = common::Reader { io, cx };
+            let mut reader = common::SyncReadAdapter { io, cx };
             match this.acceptor.read_tls(&mut reader) {
                 Ok(0) => return Err(io::ErrorKind::UnexpectedEof.into()).into(),
                 Ok(_) => {}
