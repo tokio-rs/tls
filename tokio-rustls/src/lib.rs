@@ -231,16 +231,18 @@ where
 
             let mut buf = ReadBuf::new(&mut this.buf);
             buf.advance(this.used);
+
             if buf.remaining() > 0 {
-                if let Err(err) = ready!(Pin::new(io).poll_read(cx, &mut buf)) {
-                    return Poll::Ready(Err(err));
+                let len_before_read = buf.filled().len();
+                ready!(Pin::new(io).poll_read(cx, &mut buf))?;
+                let len_after_read = buf.filled().len();
+
+                if len_before_read == len_after_read {
+                    return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into()));
                 }
             }
 
-            let read = match this.acceptor.read_tls(&mut buf.filled()) {
-                Ok(read) => read,
-                Err(err) => return Poll::Ready(Err(err)),
-            };
+            let read = this.acceptor.read_tls(&mut buf.filled())?;
 
             let received = buf.filled().len();
             if read < received {
