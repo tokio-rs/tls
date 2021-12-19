@@ -1,0 +1,12 @@
+[package]
+name = "dangleclient"
+version = "0.1.0"
+authors = ["yumingming <yumm_007@163.com>"]
+edition = "2018"
+
+[dependencies]
+tokio = { version = "1.0", features = [ "full" ] }
+rustls = { version = "0.20", features = ["dangerous_configuration"] }
+argh = "0.1"
+tokio-rustls = { path = "../.." }
+rustls-pemfile = "0.2"
