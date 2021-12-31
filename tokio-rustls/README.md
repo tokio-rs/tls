@@ -11,18 +11,32 @@ Asynchronous TLS/SSL streams for [Tokio](https://tokio.rs/) using
 ### Basic Structure of a Client
 
 ```rust
-use webpki::DNSNameRef;
-use tokio_rustls::{ TlsConnector, rustls::ClientConfig };
-
+use tokio_rustls::{
+    rustls::ClientConfig, rustls::OwnedTrustAnchor, rustls::RootCertStore, rustls::ServerName,
+    TlsConnector,
+};
 // ...
-
-let mut config = ClientConfig::new();
-config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-let config = TlsConnector::from(Arc::new(config));
-let dnsname = DNSNameRef::try_from_ascii_str("www.rust-lang.org").unwrap();
-
-let stream = TcpStream::connect(&addr).await?;
-let mut stream = config.connect(dnsname, stream).await?;
+ let connector: TlsConnector = {
+        let mut root_store = RootCertStore::empty();
+        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+            OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject,
+                ta.spki,
+                ta.name_constraints,
+            )
+        }));
+        let config = ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+        Arc::new(config).into()
+    };
+  // the one of www.rust-lang.org resolved addr
+  let addr: SocketAddr = "13.33.9.123:443".parse().unwrap();
+  let stream = TcpStream::connect(&addr).await?;
+  let mut socket = connector
+      .connect(ServerName::try_from("www.rust-lang.org").unwrap(), stream)
+      .await?;
 
 // ...
 ```
