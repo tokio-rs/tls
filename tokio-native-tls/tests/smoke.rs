@@ -1,7 +1,7 @@
 use futures::join;
 use lazy_static::lazy_static;
 use native_tls::{Certificate, Identity};
-use std::{fs, io::Error, path::PathBuf, process::Command};
+use std::{io::Error, path::PathBuf, process::Command};
 use tokio::{
     io::{AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::{TcpListener, TcpStream},
