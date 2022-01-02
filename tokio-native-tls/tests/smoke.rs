@@ -135,13 +135,13 @@ async fn one_byte_at_a_time() {
 }
 
 fn context() -> (TlsAcceptor, TlsConnector) {
-    let pkcs12 = fs::read(CERT_DIR.join("identity.p12")).unwrap();
-    let der = fs::read(CERT_DIR.join("root-ca.der")).unwrap();
+    let pkcs12 = include_bytes!("identity.p12");
+    let der = include_bytes!("root-ca.der");
 
-    let identity = Identity::from_pkcs12(&pkcs12, "mypass").unwrap();
+    let identity = Identity::from_pkcs12(pkcs12, "mypass").unwrap();
     let acceptor = native_tls::TlsAcceptor::builder(identity).build().unwrap();
 
-    let cert = Certificate::from_der(&der).unwrap();
+    let cert = Certificate::from_der(der).unwrap();
     let connector = native_tls::TlsConnector::builder()
         .add_root_certificate(cert)
         .build()
