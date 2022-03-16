@@ -5,7 +5,7 @@ use rustls::{ClientConnection, Connection, ServerConnection};
 use std::io::{self, Cursor, Read, Write};
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf, BufWriter};
 
 struct Good<'a>(&'a mut Connection);
 
@@ -273,7 +273,7 @@ fn do_handshake(
     server: &mut Connection,
     cx: &mut Context<'_>,
 ) -> Poll<io::Result<()>> {
-    let mut good = Good(server);
+    let mut good = BufWriter::new(Good(server));
     let mut stream = Stream::new(&mut good, client);
 
     while stream.session.is_handshaking() {
