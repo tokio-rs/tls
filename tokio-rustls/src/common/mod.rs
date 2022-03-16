@@ -178,6 +178,14 @@ where
                 }
             }
 
+            if wrlen != 0 {
+                match Pin::new(&mut self.io).poll_flush(cx) {
+                    Poll::Ready(Ok(())) => (),
+                    Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
+                    Poll::Pending => write_would_block = true
+                }
+            }
+
             while !self.eof && self.session.wants_read() {
                 match self.read_io(cx) {
                     Poll::Ready(Ok(0)) => self.eof = true,
