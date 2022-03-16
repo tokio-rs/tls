@@ -166,10 +166,14 @@ where
         loop {
             let mut write_would_block = false;
             let mut read_would_block = false;
+            let mut need_flush = false;
 
             while self.session.wants_write() {
                 match self.write_io(cx) {
-                    Poll::Ready(Ok(n)) => wrlen += n,
+                    Poll::Ready(Ok(n)) => {
+                        wrlen += n;
+                        need_flush = true;
+                    },
                     Poll::Pending => {
                         write_would_block = true;
                         break;
@@ -178,7 +182,7 @@ where
                 }
             }
 
-            if wrlen != 0 {
+            if need_flush {
                 match Pin::new(&mut self.io).poll_flush(cx) {
                     Poll::Ready(Ok(())) => (),
                     Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
