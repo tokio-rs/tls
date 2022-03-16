@@ -5,7 +5,7 @@ use rustls::{ClientConnection, Connection, ServerConnection};
 use std::io::{self, Cursor, Read, Write};
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf, BufWriter};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 
 struct Good<'a>(&'a mut Connection);
 
@@ -203,6 +203,30 @@ async fn stream_handshake() -> io::Result<()> {
 }
 
 #[tokio::test]
+async fn stream_buffered_handshake() -> io::Result<()> {
+    use tokio::io::BufWriter;
+
+    let (server, mut client) = make_pair();
+    let mut server = Connection::from(server);
+
+    {
+        let mut good = BufWriter::new(Good(&mut server));
+        let mut stream = Stream::new(&mut good, &mut client);
+        let (r, w) = poll_fn(|cx| stream.handshake(cx)).await?;
+
+        assert!(r > 0);
+        assert!(w > 0);
+
+        poll_fn(|cx| stream.handshake(cx)).await?; // finish server handshake
+    }
+
+    assert!(!server.is_handshaking());
+    assert!(!client.is_handshaking());
+
+    Ok(()) as io::Result<()>
+}
+
+#[tokio::test]
 async fn stream_handshake_eof() -> io::Result<()> {
     let (_, mut client) = make_pair();
 
@@ -273,7 +297,7 @@ fn do_handshake(
     server: &mut Connection,
     cx: &mut Context<'_>,
 ) -> Poll<io::Result<()>> {
-    let mut good = BufWriter::new(Good(server));
+    let mut good = Good(server);
     let mut stream = Stream::new(&mut good, client);
 
     while stream.session.is_handshaking() {
