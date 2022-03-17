@@ -173,7 +173,7 @@ where
                     Poll::Ready(Ok(n)) => {
                         wrlen += n;
                         need_flush = true;
-                    },
+                    }
                     Poll::Pending => {
                         write_would_block = true;
                         break;
@@ -186,7 +186,7 @@ where
                 match Pin::new(&mut self.io).poll_flush(cx) {
                     Poll::Ready(Ok(())) => (),
                     Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
-                    Poll::Pending => write_would_block = true
+                    Poll::Pending => write_would_block = true,
                 }
             }
 
