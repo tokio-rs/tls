@@ -203,6 +203,30 @@ async fn stream_handshake() -> io::Result<()> {
 }
 
 #[tokio::test]
+async fn stream_buffered_handshake() -> io::Result<()> {
+    use tokio::io::BufWriter;
+
+    let (server, mut client) = make_pair();
+    let mut server = Connection::from(server);
+
+    {
+        let mut good = BufWriter::new(Good(&mut server));
+        let mut stream = Stream::new(&mut good, &mut client);
+        let (r, w) = poll_fn(|cx| stream.handshake(cx)).await?;
+
+        assert!(r > 0);
+        assert!(w > 0);
+
+        poll_fn(|cx| stream.handshake(cx)).await?; // finish server handshake
+    }
+
+    assert!(!server.is_handshaking());
+    assert!(!client.is_handshaking());
+
+    Ok(()) as io::Result<()>
+}
+
+#[tokio::test]
 async fn stream_handshake_eof() -> io::Result<()> {
     let (_, mut client) = make_pair();
 
