@@ -62,9 +62,7 @@ where
                 try_poll!(tls_stream.handshake(cx));
             }
 
-            while tls_stream.session.wants_write() {
-                try_poll!(tls_stream.write_io(cx));
-            }
+            try_poll!(Pin::new(&mut tls_stream).poll_flush(cx));
         }
 
         Poll::Ready(Ok(stream))
