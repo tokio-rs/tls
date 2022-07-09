@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -42,7 +42,7 @@ jobs:
       with:
         toolchain: ${{ matrix.rust }}
         profile: minimal
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v3
     - name: Test
       run: cargo test --all
 
@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
