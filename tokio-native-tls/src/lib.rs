@@ -120,14 +120,14 @@ where
     where
         F: FnOnce(&mut Context<'_>, Pin<&mut S>) -> Poll<io::Result<R>>,
     {
-        unsafe {
+        
             assert!(!self.context.is_null());
-            let waker = &mut *(self.context as *mut _);
+            let waker = unsafe { &mut *(self.context as *mut _) };
             match f(waker, Pin::new(&mut self.inner)) {
                 Poll::Ready(r) => r,
                 Poll::Pending => Err(io::Error::from(io::ErrorKind::WouldBlock)),
             }
-        }
+        
     }
 }
 
