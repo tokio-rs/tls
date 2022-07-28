@@ -286,7 +286,7 @@ fn make_pair() -> (ServerConnection, ClientConnection) {
     let (sconfig, cconfig) = utils::make_configs();
     let server = ServerConnection::new(sconfig).unwrap();
 
-    let domain = rustls::ServerName::try_from("localhost").unwrap();
+    let domain = rustls::ServerName::try_from("foobar.com").unwrap();
     let client = ClientConnection::new(cconfig, domain).unwrap();
 
     (server, client)
