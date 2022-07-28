@@ -74,7 +74,7 @@ lazy_static! {
         });
 
         let addr = recv.recv().unwrap();
-        (addr, "testserver.com", CHAIN)
+        (addr, "foobar.com", CHAIN)
     };
 }
 
@@ -172,7 +172,7 @@ async fn test_lazy_config_acceptor() -> io::Result<()> {
     use std::convert::TryFrom;
 
     let (cstream, sstream) = tokio::io::duplex(1200);
-    let domain = rustls::ServerName::try_from("localhost").unwrap();
+    let domain = rustls::ServerName::try_from("foobar.com").unwrap();
     tokio::spawn(async move {
         let connector = crate::TlsConnector::from(cconfig);
         let mut client = connector.connect(domain, cstream).await.unwrap();
@@ -186,7 +186,7 @@ async fn test_lazy_config_acceptor() -> io::Result<()> {
     let start = acceptor.await.unwrap();
     let ch = start.client_hello();
 
-    assert_eq!(ch.server_name(), Some("localhost"));
+    assert_eq!(ch.server_name(), Some("foobar.com"));
     assert_eq!(
         ch.alpn()
             .map(|protos| protos.collect::<Vec<_>>())
