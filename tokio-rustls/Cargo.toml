@@ -28,4 +28,4 @@ tokio = { version = "1.0", features = ["full"] }
 futures-util = "0.3.1"
 lazy_static = "1"
 webpki-roots = "0.22"
-rustls-pemfile = "0.2.1"
+rustls-pemfile = "1"
