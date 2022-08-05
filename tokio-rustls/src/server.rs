@@ -59,23 +59,34 @@ where
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
+        #[cfg(not(feature = "use-futures"))] buf: &mut ReadBuf<'_>,
+        #[cfg(feature = "use-futures")] buf: &mut [u8],
+    ) -> Poll<io::Result<PollReadResult>> {
         let this = self.get_mut();
         let mut stream =
             Stream::new(&mut this.io, &mut this.session).set_eof(!this.state.readable());
 
         match &this.state {
             TlsState::Stream | TlsState::WriteShutdown => {
+                #[cfg(not(feature = "use-futures"))]
                 let prev = buf.remaining();
 
                 match stream.as_mut_pin().poll_read(cx, buf) {
+                    #[cfg(not(feature = "use-futures"))]
                     Poll::Ready(Ok(())) => {
                         if prev == buf.remaining() || stream.eof {
                             this.state.shutdown_read();
                         }
 
                         Poll::Ready(Ok(()))
+                    }
+                    #[cfg(feature = "use-futures")]
+                    Poll::Ready(Ok(n)) => {
+                        if n == 0 || stream.eof {
+                            this.state.shutdown_read();
+                        }
+
+                        Poll::Ready(Ok(n))
                     }
                     Poll::Ready(Err(err)) if err.kind() == io::ErrorKind::UnexpectedEof => {
                         this.state.shutdown_read();
@@ -84,7 +95,10 @@ where
                     output => output,
                 }
             }
+            #[cfg(not(feature = "use-futures"))]
             TlsState::ReadShutdown | TlsState::FullyShutdown => Poll::Ready(Ok(())),
+            #[cfg(feature = "use-futures")]
+            TlsState::ReadShutdown | TlsState::FullyShutdown => Poll::Ready(Ok(0)),
             #[cfg(feature = "early-data")]
             s => unreachable!("server TLS can not hit this state: {:?}", s),
         }
@@ -115,6 +129,20 @@ where
         stream.as_mut_pin().poll_flush(cx)
     }
 
+    #[cfg(feature = "use-futures")]
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        if self.state.writeable() {
+            self.session.send_close_notify();
+            self.state.shutdown_write();
+        }
+
+        let this = self.get_mut();
+        let mut stream =
+            Stream::new(&mut this.io, &mut this.session).set_eof(!this.state.readable());
+        stream.as_mut_pin().poll_close(cx)
+    }
+
+    #[cfg(not(feature = "use-futures"))]
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         if self.state.writeable() {
             self.session.send_close_notify();

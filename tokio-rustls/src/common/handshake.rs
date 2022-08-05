@@ -1,10 +1,13 @@
 use crate::common::{Stream, TlsState};
+#[cfg(feature = "use-futures")]
+use futures::io::{AsyncRead, AsyncWrite};
 use rustls::{ConnectionCommon, SideData};
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{io, mem};
+#[cfg(not(feature = "use-futures"))]
 use tokio::io::{AsyncRead, AsyncWrite};
 
 pub(crate) trait IoSession {

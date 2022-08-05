@@ -7,11 +7,24 @@ use std::io::{BufReader, Cursor, ErrorKind};
 use std::net::SocketAddr;
 use std::sync::mpsc::channel;
 use std::sync::Arc;
+#[cfg(not(feature = "use-futures"))]
 use std::time::Duration;
 use std::{io, thread};
-use tokio::io::{copy, split, AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
-use tokio::{runtime, time};
+#[cfg(not(feature = "use-futures"))]
+use tokio::{
+    io::{copy, split, AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream},
+    runtime,
+    time
+};
+#[cfg(feature = "use-futures")]
+use async_std::{
+    net::{TcpListener, TcpStream},
+};
+#[cfg(feature = "use-futures")]
+use futures::io::{AsyncReadExt, AsyncWriteExt, copy};
+#[cfg(feature = "use-futures")]
+use tokio::runtime;
 use tokio_rustls::{LazyConfigAcceptor, TlsAcceptor, TlsConnector};
 
 const CERT: &str = include_str!("end.cert");
@@ -58,6 +71,9 @@ lazy_static! {
                     let fut = async move {
                         let stream = acceptor.accept(stream).await?;
 
+                        #[cfg(feature = "use-futures")]
+                        let (mut reader, mut writer) = stream.split();
+                        #[cfg(not(feature = "use-futures"))]
                         let (mut reader, mut writer) = split(stream);
                         copy(&mut reader, &mut writer).await?;
 
@@ -166,6 +182,7 @@ async fn fail() -> io::Result<()> {
     Ok(())
 }
 
+#[cfg(not(feature = "use-futures"))]
 #[tokio::test]
 async fn test_lazy_config_acceptor() -> io::Result<()> {
     let (sconfig, cconfig) = utils::make_configs();
@@ -204,6 +221,7 @@ async fn test_lazy_config_acceptor() -> io::Result<()> {
 }
 
 // This test is a follow-up from https://github.com/tokio-rs/tls/issues/85
+#[cfg(not(feature = "use-futures"))]
 #[tokio::test]
 async fn lazy_config_acceptor_eof() {
     let buf = Cursor::new(Vec::new());

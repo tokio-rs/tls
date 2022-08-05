@@ -2,8 +2,14 @@ use std::convert::TryFrom;
 use std::io;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
+#[cfg(not(feature = "use-futures"))]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+#[cfg(not(feature = "use-futures"))]
 use tokio::net::TcpStream;
+#[cfg(feature = "use-futures")]
+use async_std::net::TcpStream;
+#[cfg(feature = "use-futures")]
+use futures::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_rustls::{
     client::TlsStream,
     rustls::{self, ClientConfig, OwnedTrustAnchor},

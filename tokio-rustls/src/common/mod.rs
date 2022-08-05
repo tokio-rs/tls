@@ -1,12 +1,18 @@
 mod handshake;
 
+#[cfg(feature = "use-futures")]
+use futures::io::{AsyncRead, AsyncWrite};
+#[cfg(feature = "use-futures")]
+use tokio::io::ReadBuf;
 pub(crate) use handshake::{IoSession, MidHandshake};
 use rustls::{ConnectionCommon, SideData};
 use std::io::{self, IoSlice, Read, Write};
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+#[cfg(not(feature = "use-futures"))]
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use crate::PollReadResult;
 
 #[derive(Debug)]
 pub enum TlsState {
@@ -229,9 +235,12 @@ where
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
+        #[cfg(not(feature = "use-futures"))] buf: &mut ReadBuf<'_>,
+        #[cfg(feature = "use-futures")] buf: &mut [u8],
+    ) -> Poll<io::Result<PollReadResult>> {
         let mut io_pending = false;
+        #[cfg(feature = "use-futures")]
+        let mut buf = ReadBuf::new(buf);
 
         // read a packet
         while !self.eof && self.session.wants_read() {
@@ -259,7 +268,10 @@ where
             // in which case no additional processing is required.
             Ok(n) => {
                 buf.advance(n);
-                Poll::Ready(Ok(()))
+                #[cfg(not(feature = "use-futures"))]
+                return Poll::Ready(Ok(()));
+                #[cfg(feature = "use-futures")]
+                return Poll::Ready(Ok(n));
             }
 
             // Rustls doesn't have more data to yield, but it believes the connection is open.
@@ -330,6 +342,15 @@ where
         Pin::new(&mut self.io).poll_flush(cx)
     }
 
+    #[cfg(feature = "use-futures")]
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        while self.session.wants_write() {
+            ready!(self.write_io(cx))?;
+        }
+        Pin::new(&mut self.io).poll_close(cx)
+    }
+
+    #[cfg(not(feature = "use-futures"))]
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         while self.session.wants_write() {
             ready!(self.write_io(cx))?;
@@ -348,6 +369,17 @@ pub struct SyncReadAdapter<'a, 'b, T> {
 }
 
 impl<'a, 'b, T: AsyncRead + Unpin> Read for SyncReadAdapter<'a, 'b, T> {
+    #[cfg(feature = "use-futures")]
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match Pin::new(&mut self.io).poll_read(self.cx, buf) {
+            Poll::Ready(Ok(n)) => Ok(n),
+            Poll::Ready(Err(err)) => Err(err),
+            Poll::Pending => Err(io::ErrorKind::WouldBlock.into()),
+        }
+    }
+
+    #[cfg(not(feature = "use-futures"))]
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let mut buf = ReadBuf::new(buf);

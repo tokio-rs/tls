@@ -15,9 +15,10 @@ edition = "2018"
 tokio = "1.0"
 rustls = { version = "0.20", default-features = false }
 webpki = "0.22"
-
+futures = { version = "0.3", optional = true }
 [features]
 default = ["logging", "tls12"]
+use-futures = ["futures"]
 dangerous_configuration = ["rustls/dangerous_configuration"]
 early-data = []
 logging = ["rustls/logging"]
@@ -25,6 +26,7 @@ tls12 = ["rustls/tls12"]
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full"] }
+tokio-async-std = "1"
 futures-util = "0.3.1"
 lazy_static = "1"
 webpki-roots = "0.22"

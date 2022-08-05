@@ -10,10 +10,24 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use tokio::io::{split, AsyncRead, AsyncWriteExt, ReadBuf};
-use tokio::net::TcpStream;
-use tokio::sync::oneshot;
-use tokio::time::sleep;
+use tokio::io::ReadBuf;
+#[cfg(not(feature = "use-futures"))]
+use tokio::{
+    io::{split, AsyncRead, AsyncWriteExt},
+    net::TcpStream,
+    sync::oneshot,
+    time::sleep,
+};
+#[cfg(feature = "use-futures")]
+use async_std::{
+    net::TcpStream,
+    task::sleep,
+};
+#[cfg(feature = "use-futures")]
+use futures::{
+    channel::oneshot,
+    io::{AsyncRead, AsyncWriteExt, AsyncReadExt}
+};
 use tokio_rustls::{
     client::TlsStream,
     rustls::{self, ClientConfig, OwnedTrustAnchor},
@@ -49,7 +63,10 @@ async fn send(
     let domain = rustls::ServerName::try_from("testserver.com").unwrap();
 
     let stream = connector.connect(domain, stream).await?;
+    #[cfg(not(feature = "use-futures"))]
     let (mut rd, mut wd) = split(stream);
+    #[cfg(feature = "use-futures")]
+    let (mut rd, mut wd) = stream.split();
     let (notify, wait) = oneshot::channel();
 
     let j = tokio::spawn(async move {

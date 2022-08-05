@@ -1,11 +1,17 @@
 use super::Stream;
+#[cfg(feature = "use-futures")]
+use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use futures_util::future::poll_fn;
 use futures_util::task::noop_waker_ref;
 use rustls::{ClientConnection, Connection, ServerConnection};
 use std::io::{self, Cursor, Read, Write};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+#[cfg(feature = "use-futures")]
+use tokio::io::ReadBuf;
+#[cfg(not(feature = "use-futures"))]
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
+use crate::PollReadResult;
 
 struct Good<'a>(&'a mut Connection);
 
@@ -13,14 +19,23 @@ impl<'a> AsyncRead for Good<'a> {
     fn poll_read(
         mut self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
+        #[cfg(not(feature = "use-futures"))] buf: &mut ReadBuf<'_>,
+        #[cfg(feature = "use-futures")] buf: &mut [u8],
+    ) -> Poll<io::Result<PollReadResult>> {
+        #[cfg(feature = "use-futures")]
+        let mut buf = ReadBuf::new(buf);
         let mut buf2 = buf.initialize_unfilled();
 
         Poll::Ready(match self.0.write_tls(buf2.by_ref()) {
+            #[cfg(not(feature = "use-futures"))]
             Ok(n) => {
                 buf.advance(n);
                 Ok(())
+            }
+            #[cfg(feature="use-futures")]
+            Ok(n) => {
+                buf.advance(n);
+                Ok(n)
             }
             Err(err) => Err(err),
         })
@@ -47,6 +62,14 @@ impl<'a> AsyncWrite for Good<'a> {
         Poll::Ready(Ok(()))
     }
 
+    #[cfg(feature = "use-futures")]
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        self.0.send_close_notify();
+        dbg!("sent close notify");
+        self.poll_flush(cx)
+    }
+
+    #[cfg(not(feature = "use-futures"))]
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         self.0.send_close_notify();
         dbg!("sent close notify");
@@ -60,8 +83,9 @@ impl AsyncRead for Pending {
     fn poll_read(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
-        _: &mut ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
+        #[cfg(feature = "use-futures")] _: &mut [u8],
+        #[cfg(not(feature = "use-futures"))] _: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<PollReadResult>> {
         Poll::Pending
     }
 }
@@ -79,6 +103,12 @@ impl AsyncWrite for Pending {
         Poll::Ready(Ok(()))
     }
 
+    #[cfg(feature = "use-futures")]
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    #[cfg(not(feature = "use-futures"))]
     fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
@@ -90,13 +120,19 @@ impl AsyncRead for Expected {
     fn poll_read(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
+        #[cfg(not(feature = "use-futures"))] buf: &mut ReadBuf<'_>,
+        #[cfg(feature = "use-futures")] buf: &mut [u8],
+    ) -> Poll<io::Result<PollReadResult>> {
+        #[cfg(feature = "use-futures")]
+        let mut buf = ReadBuf::new(buf);
         let this = self.get_mut();
         let n = std::io::Read::read(&mut this.0, buf.initialize_unfilled())?;
         buf.advance(n);
 
-        Poll::Ready(Ok(()))
+        #[cfg(not(feature = "use-futures"))]
+        return Poll::Ready(Ok(()));
+        #[cfg(feature = "use-futures")]
+        return Poll::Ready(Ok(n));
     }
 }
 
@@ -113,6 +149,12 @@ impl AsyncWrite for Expected {
         Poll::Ready(Ok(()))
     }
 
+    #[cfg(feature = "use-futures")]
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    #[cfg(not(feature = "use-futures"))]
     fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
@@ -142,6 +184,10 @@ async fn stream_good() -> io::Result<()> {
         dbg!(stream.write_all(b"Hello World!").await)?;
         stream.session.send_close_notify();
 
+        #[cfg(feature = "use-futures")]
+        dbg!(stream.close().await)?;
+
+        #[cfg(not(feature = "use-futures"))]
         dbg!(stream.shutdown().await)?;
     }
 
@@ -204,7 +250,10 @@ async fn stream_handshake() -> io::Result<()> {
 
 #[tokio::test]
 async fn stream_buffered_handshake() -> io::Result<()> {
+    #[cfg(not(feature = "use-futures"))]
     use tokio::io::BufWriter;
+    #[cfg(feature = "use-futures")]
+    use futures::io::BufWriter;
 
     let (server, mut client) = make_pair();
     let mut server = Connection::from(server);

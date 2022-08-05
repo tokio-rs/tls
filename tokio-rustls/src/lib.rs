@@ -50,6 +50,8 @@ mod common;
 pub mod server;
 
 use common::{MidHandshake, Stream, TlsState};
+#[cfg(feature = "use-futures")]
+use futures::io::{AsyncRead, AsyncWrite};
 use rustls::{ClientConfig, ClientConnection, CommonState, ServerConfig, ServerConnection};
 use std::future::Future;
 use std::io;
@@ -60,10 +62,16 @@ use std::os::windows::io::{AsRawSocket, RawSocket};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+#[cfg(not(feature = "use-futures"))]
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 pub use rustls;
 pub use webpki;
+
+#[cfg(feature = "use-futures")]
+pub type PollReadResult = usize;
+#[cfg(not(feature = "use-futures"))]
+pub type PollReadResult = ();
 
 /// A wrapper around a `rustls::ClientConfig`, providing an async `connect` method.
 #[derive(Clone)]
@@ -465,8 +473,9 @@ where
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
+        #[cfg(not(feature = "use-futures"))] buf: &mut ReadBuf<'_>,
+        #[cfg(feature = "use-futures")] buf: &mut [u8],
+    ) -> Poll<io::Result<PollReadResult>> {
         match self.get_mut() {
             TlsStream::Client(x) => Pin::new(x).poll_read(cx, buf),
             TlsStream::Server(x) => Pin::new(x).poll_read(cx, buf),
@@ -498,6 +507,16 @@ where
         }
     }
 
+    #[cfg(feature = "use-futures")]
+    #[inline]
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match self.get_mut() {
+            TlsStream::Client(x) => Pin::new(x).poll_close(cx),
+            TlsStream::Server(x) => Pin::new(x).poll_close(cx),
+        }
+    }
+
+    #[cfg(not(feature = "use-futures"))]
     #[inline]
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         match self.get_mut() {
