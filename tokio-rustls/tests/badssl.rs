@@ -1,3 +1,5 @@
+use rustls::PrivateKey;
+use rustls_pemfile::{certs, rsa_private_keys};
 use std::convert::TryFrom;
 use std::io;
 use std::net::ToSocketAddrs;
@@ -9,6 +11,9 @@ use tokio_rustls::{
     rustls::{self, ClientConfig, OwnedTrustAnchor},
     TlsConnector,
 };
+
+const CLIENT_CERT: &str = include_str!("client.cert");
+const CLIENT_RSA: &str = include_str!("client.rsa");
 
 async fn get(
     config: Arc<ClientConfig>,
@@ -89,6 +94,82 @@ async fn test_modern() -> io::Result<()> {
     let (_, output) = get(config.clone(), domain, 443).await?;
     assert!(
         output.contains("<title>mozilla-modern.badssl.com</title>"),
+        "failed badssl test, output: {}",
+        output
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_client() -> io::Result<()> {
+    let cert = certs(&mut io::BufReader::new(CLIENT_CERT.as_bytes()))
+        .unwrap()
+        .drain(..)
+        .map(rustls::Certificate)
+        .collect();
+
+    let mut keys = rsa_private_keys(&mut io::BufReader::new(io::Cursor::new(CLIENT_RSA))).unwrap();
+    let mut keys = keys.drain(..).map(PrivateKey);
+
+    let mut root_store = rustls::RootCertStore::empty();
+    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+        OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject,
+            ta.spki,
+            ta.name_constraints,
+        )
+    }));
+
+    let config = rustls::ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(root_store)
+        .with_single_cert(cert, keys.next().unwrap())
+        .unwrap();
+    let config = Arc::new(config);
+    let domain = "client.badssl.com";
+
+    let (_, output) = get(config.clone(), domain, 443).await?;
+    assert!(
+        output.contains("<title>client.badssl.com</title>"),
+        "failed badssl test, output: {}",
+        output
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_client_cert_missing() -> io::Result<()> {
+    let cert = certs(&mut io::BufReader::new(CLIENT_CERT.as_bytes()))
+        .unwrap()
+        .drain(..)
+        .map(rustls::Certificate)
+        .collect();
+
+    let mut keys = rsa_private_keys(&mut io::BufReader::new(io::Cursor::new(CLIENT_RSA))).unwrap();
+    let mut keys = keys.drain(..).map(PrivateKey);
+
+    let mut root_store = rustls::RootCertStore::empty();
+    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+        OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject,
+            ta.spki,
+            ta.name_constraints,
+        )
+    }));
+
+    let config = rustls::ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(root_store)
+        .with_single_cert(cert, keys.next().unwrap())
+        .unwrap();
+    let config = Arc::new(config);
+    let domain = "client-cert-missing.badssl.com";
+
+    let (_, output) = get(config.clone(), domain, 443).await?;
+    assert!(
+        output.contains("<title>400 The SSL certificate error</title>"),
         "failed badssl test, output: {}",
         output
     );
