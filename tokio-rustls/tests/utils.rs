@@ -27,18 +27,15 @@ mod utils {
         let mut client_root_cert_store = RootCertStore::empty();
         let mut chain = BufReader::new(Cursor::new(CHAIN));
         let certs = certs(&mut chain).unwrap();
-        let trust_anchors = certs
-            .iter()
-            .map(|cert| {
-                let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
-                OwnedTrustAnchor::from_subject_spki_name_constraints(
-                    ta.subject,
-                    ta.spki,
-                    ta.name_constraints,
-                )
-            })
-            .collect::<Vec<_>>();
-        client_root_cert_store.add_server_trust_anchors(trust_anchors.into_iter());
+        client_root_cert_store.add_server_trust_anchors(certs.iter().map(|cert| {
+            let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
+            OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject,
+                ta.spki,
+                ta.name_constraints,
+            )
+        }));
+
         let cconfig = ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(client_root_cert_store)

@@ -129,8 +129,6 @@ async fn stream_good() -> io::Result<()> {
     io::copy(&mut Cursor::new(FILE), &mut server.writer())?;
     server.send_close_notify();
 
-    let mut server = Connection::from(server);
-
     {
         let mut good = Good(&mut server);
         let mut stream = Stream::new(&mut good, &mut client);

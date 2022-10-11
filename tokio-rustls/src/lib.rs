@@ -401,11 +401,11 @@ impl<T> TlsStream<T> {
         match self {
             Client(io) => {
                 let (io, session) = io.get_ref();
-                (io, &*session)
+                (io, session)
             }
             Server(io) => {
                 let (io, session) = io.get_ref();
-                (io, &*session)
+                (io, session)
             }
         }
     }
