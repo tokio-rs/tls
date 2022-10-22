@@ -176,7 +176,7 @@ async fn test_lazy_config_acceptor() -> io::Result<()> {
         client.read_to_end(&mut buf).await.unwrap();
     });
 
-    let acceptor = LazyConfigAcceptor::new(rustls::server::Acceptor::new().unwrap(), sstream);
+    let acceptor = LazyConfigAcceptor::new(rustls::server::Acceptor::default(), sstream);
     let start = acceptor.await.unwrap();
     let ch = start.client_hello();
 
@@ -201,7 +201,7 @@ async fn test_lazy_config_acceptor() -> io::Result<()> {
 #[tokio::test]
 async fn lazy_config_acceptor_eof() {
     let buf = Cursor::new(Vec::new());
-    let acceptor = LazyConfigAcceptor::new(rustls::server::Acceptor::new().unwrap(), buf);
+    let acceptor = LazyConfigAcceptor::new(rustls::server::Acceptor::default(), buf);
 
     let accept_result = match time::timeout(Duration::from_secs(3), acceptor).await {
         Ok(res) => res,
