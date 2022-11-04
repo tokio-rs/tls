@@ -79,7 +79,7 @@ lazy_static! {
 }
 
 fn start_server() -> &'static (SocketAddr, &'static str, &'static [u8]) {
-    &*TEST_SERVER
+    &TEST_SERVER
 }
 
 async fn start_client(addr: SocketAddr, domain: &str, config: Arc<ClientConfig>) -> io::Result<()> {

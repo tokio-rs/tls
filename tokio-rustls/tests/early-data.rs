@@ -75,7 +75,7 @@ async fn send(
         match read_task.await {
             Ok(()) => (),
             Err(ref err) if err.kind() == io::ErrorKind::UnexpectedEof => (),
-            Err(err) => return Err(err.into()),
+            Err(err) => return Err(err),
         }
 
         Ok(rd) as io::Result<_>
@@ -106,9 +106,9 @@ async fn test_0rtt() -> io::Result<()> {
         .arg("s_server")
         .arg("-early_data")
         .arg("-tls1_3")
-        .args(&["-cert", "./tests/end.cert"])
-        .args(&["-key", "./tests/end.rsa"])
-        .args(&["-port", "12354"])
+        .args(["-cert", "./tests/end.cert"])
+        .args(["-key", "./tests/end.rsa"])
+        .args(["-port", "12354"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -119,19 +119,16 @@ async fn test_0rtt() -> io::Result<()> {
 
     let mut chain = BufReader::new(Cursor::new(include_str!("end.chain")));
     let certs = rustls_pemfile::certs(&mut chain).unwrap();
-    let trust_anchors = certs
-        .iter()
-        .map(|cert| {
-            let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
-            OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject,
-                ta.spki,
-                ta.name_constraints,
-            )
-        })
-        .collect::<Vec<_>>();
+    let trust_anchors = certs.iter().map(|cert| {
+        let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
+        OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject,
+            ta.spki,
+            ta.name_constraints,
+        )
+    });
     let mut root_store = RootCertStore::empty();
-    root_store.add_server_trust_anchors(trust_anchors.into_iter());
+    root_store.add_server_trust_anchors(trust_anchors);
     let mut config = rustls::ClientConfig::builder()
         .with_safe_default_cipher_suites()
         .with_safe_default_kx_groups()
