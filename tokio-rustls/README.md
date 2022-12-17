@@ -1,12 +1,12 @@
 # tokio-rustls
-[![github actions](https://github.com/tokio-rs/tls/workflows/Rust/badge.svg)](https://github.com/tokio-rs/tls/actions)
+[![github actions](https://github.com/tokio-rs/tls/workflows/CI/badge.svg)](https://github.com/tokio-rs/tls/actions)
 [![crates](https://img.shields.io/crates/v/tokio-rustls.svg)](https://crates.io/crates/tokio-rustls)
 [![license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/tokio-rs/tls/blob/master/tokio-rustls/LICENSE-MIT)
 [![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/tokio-rs/tls/blob/master/tokio-rustls/LICENSE-APACHE)
-[![docs.rs](https://docs.rs/tokio-rustls/badge.svg)](https://docs.rs/tokio-rustls/)
+[![docs.rs](https://docs.rs/tokio-rustls/badge.svg)](https://docs.rs/tokio-rustls)
 
 Asynchronous TLS/SSL streams for [Tokio](https://tokio.rs/) using
-[Rustls](https://github.com/ctz/rustls).
+[Rustls](https://github.com/rustls/rustls).
 
 ### Basic Structure of a Client
 
@@ -50,9 +50,9 @@ cargo run -- 127.0.0.1:8000 --cert mycert.der --key mykey.der
 This project is licensed under either of
 
  * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-   http://www.apache.org/licenses/LICENSE-2.0)
+   https://www.apache.org/licenses/LICENSE-2.0)
  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-   http://opensource.org/licenses/MIT)
+   https://opensource.org/licenses/MIT)
 
 at your option.
 
