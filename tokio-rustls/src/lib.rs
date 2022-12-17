@@ -1,4 +1,4 @@
-//! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/ctz/rustls).
+//! Asynchronous TLS/SSL streams for Tokio using [Rustls](https://github.com/rustls/rustls).
 //!
 //! # Why do I need to call `poll_flush`?
 //!
