@@ -25,6 +25,9 @@ categories = ["asynchronous", "network-programming"]
 native-tls = "0.2"
 tokio = "1.0"
 
+[features]
+vendored = ["native-tls/vendored"]
+
 [dev-dependencies]
 tokio = { version = "1.0", features = ["macros", "rt", "rt-multi-thread", "io-util", "net"] }
 tokio-util = { version = "0.6.0", features = ["full"] }
