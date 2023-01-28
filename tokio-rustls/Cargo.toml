@@ -10,6 +10,7 @@ readme = "README.md"
 description = "Asynchronous TLS/SSL streams for Tokio using Rustls."
 categories = ["asynchronous", "cryptography", "network-programming"]
 edition = "2018"
+rust-version = "1.56"
 
 [dependencies]
 tokio = "1.0"
