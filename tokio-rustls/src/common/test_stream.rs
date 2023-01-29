@@ -265,15 +265,12 @@ async fn stream_eof() -> io::Result<()> {
     let mut server = Connection::from(server);
     poll_fn(|cx| do_handshake(&mut client, &mut server, cx)).await?;
 
-    let mut bad = Expected(Cursor::new(Vec::new()));
-    let mut stream = Stream::new(&mut bad, &mut client);
+    let mut empty = Expected(Cursor::new(Vec::new()));
+    let mut stream = Stream::new(&mut empty, &mut client);
 
     let mut buf = Vec::new();
     let result = stream.read_to_end(&mut buf).await;
-    assert_eq!(
-        result.err().map(|e| e.kind()),
-        Some(io::ErrorKind::UnexpectedEof)
-    );
+    assert_eq!(result.ok(), Some(0));
 
     Ok(()) as io::Result<()>
 }
