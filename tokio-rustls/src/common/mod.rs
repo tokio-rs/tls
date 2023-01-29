@@ -237,6 +237,11 @@ where
         while !self.eof && self.session.wants_read() {
             match self.read_io(cx) {
                 Poll::Ready(Ok(0)) => {
+                    if let Ok(io_state) = self.session.process_new_packets() {
+                        if io_state.plaintext_bytes_to_read() == 0 {
+                            return Poll::Ready(Ok(()));
+                        }
+                    }
                     break;
                 }
                 Poll::Ready(Ok(_)) => (),
