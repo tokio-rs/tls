@@ -8,7 +8,7 @@ name = "tokio-native-tls"
 #   - README.md
 # - Update CHANGELOG.md.
 # - Create "v0.1.x" git tag.
-version = "0.3.0"
+version = "0.3.1"
 edition = "2018"
 authors = ["Tokio Contributors <team@tokio.rs>"]
 license = "MIT"
