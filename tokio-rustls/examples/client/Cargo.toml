@@ -10,4 +10,4 @@ tokio = { version = "1.0", features = [ "full" ] }
 argh = "0.1"
 tokio-rustls = { path = "../.." }
 webpki-roots = "0.22"
-rustls-pemfile = "0.2"
+rustls-pemfile = "1.0"
