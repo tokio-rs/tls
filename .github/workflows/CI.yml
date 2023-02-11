@@ -45,7 +45,9 @@ jobs:
           toolchain: ${{ matrix.rust }}
 
       - name: Test
-        run: cargo test --all
+        run: |
+          cargo test --all
+          cargo test -p tokio-rustls --features early-data
 
   lints:
     name: Lints
