@@ -9,6 +9,7 @@ use std::pin::Pin;
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::thread;
 use std::time::Duration;
 use tokio::io::{split, AsyncRead, AsyncWriteExt, ReadBuf};
 use tokio::net::TcpStream;
@@ -140,6 +141,17 @@ async fn test_0rtt() -> io::Result<()> {
     config.enable_early_data = true;
     let config = Arc::new(config);
     let addr = SocketAddr::from(([127, 0, 0, 1], 12354));
+
+    // workaround: write to openssl s_server standard input periodically, to
+    // get it unstuck on Windows
+    let stdin = handle.0.stdin.take().unwrap();
+    thread::spawn(move || {
+        let mut stdin = stdin;
+        loop {
+            thread::sleep(std::time::Duration::from_secs(5));
+            std::io::Write::write_all(&mut stdin, b"\n").unwrap();
+        }
+    });
 
     let io = send(config.clone(), addr, b"hello").await?;
     assert!(!io.get_ref().1.is_early_data_accepted());
