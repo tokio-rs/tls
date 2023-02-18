@@ -34,6 +34,7 @@ impl<T: AsyncRead + Unpin> Future for Read1<T> {
         if buf.filled().is_empty() {
             Poll::Ready(Ok(()))
         } else {
+            cx.waker().wake_by_ref();
             Poll::Pending
         }
     }
