@@ -43,7 +43,7 @@ lazy_static = "1.4.0"
 openssl = "0.10"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dev-dependencies]
-security-framework = "0.2"
+security-framework = "2.8"
 
 [target.'cfg(windows)'.dev-dependencies]
 schannel = "0.1"
