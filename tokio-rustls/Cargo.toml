@@ -14,8 +14,8 @@ rust-version = "1.56"
 
 [dependencies]
 tokio = "1.0"
-rustls = { version = "0.20.7", default-features = false }
-webpki = "0.22"
+rustls = { version = "0.21.0", default-features = false }
+webpki = { package = "rustls-webpki", version = "0.100.0", features = ["alloc", "std"] }
 
 [features]
 default = ["logging", "tls12"]
