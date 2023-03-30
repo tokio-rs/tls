@@ -102,22 +102,34 @@ impl Drop for DropKill {
     }
 }
 
+async fn wait_for_server(addr: &str) {
+    let tries = 10;
+    for i in 0..tries {
+        if let Ok(_) = TcpStream::connect(addr).await {
+            return;
+        }
+        sleep(Duration::from_millis(i * 100)).await;
+    }
+    panic!("failed to connect to {:?} after {} tries", addr, tries)
+}
+
 #[tokio::test]
 async fn test_0rtt() -> io::Result<()> {
+    let server_port = 12354;
     let mut handle = Command::new("openssl")
         .arg("s_server")
         .arg("-early_data")
         .arg("-tls1_3")
         .args(["-cert", "./tests/end.cert"])
         .args(["-key", "./tests/end.rsa"])
-        .args(["-port", "12354"])
+        .args(["-port", &server_port.to_string()])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
         .map(DropKill)?;
 
     // wait openssl server
-    sleep(Duration::from_secs(1)).await;
+    wait_for_server(format!("127.0.0.1:{}", server_port).as_str()).await;
 
     let mut chain = BufReader::new(Cursor::new(include_str!("end.chain")));
     let certs = rustls_pemfile::certs(&mut chain).unwrap();
@@ -140,7 +152,7 @@ async fn test_0rtt() -> io::Result<()> {
         .with_no_client_auth();
     config.enable_early_data = true;
     let config = Arc::new(config);
-    let addr = SocketAddr::from(([127, 0, 0, 1], 12354));
+    let addr = SocketAddr::from(([127, 0, 0, 1], server_port));
 
     // workaround: write to openssl s_server standard input periodically, to
     // get it unstuck on Windows
