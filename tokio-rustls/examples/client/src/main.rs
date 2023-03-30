@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::io::{copy, split, stdin as tokio_stdin, stdout as tokio_stdout, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_rustls::rustls::{self, OwnedTrustAnchor};
-use tokio_rustls::{webpki, TlsConnector};
+use tokio_rustls::TlsConnector;
 
 /// Tokio Rustls client example
 #[derive(FromArgs)]
