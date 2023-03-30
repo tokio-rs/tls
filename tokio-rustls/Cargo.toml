@@ -17,10 +17,8 @@ tokio = "1.0"
 rustls = { version = "0.21.0", default-features = false }
 
 [features]
-default = ["logging", "tls12"]
-dangerous_configuration = ["rustls/dangerous_configuration"]
+default = ["tls12"]
 early-data = []
-logging = ["rustls/logging"]
 tls12 = ["rustls/tls12"]
 
 [dev-dependencies]
