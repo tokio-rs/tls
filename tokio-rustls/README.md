@@ -11,18 +11,30 @@ Asynchronous TLS/SSL streams for [Tokio](https://tokio.rs/) using
 ### Basic Structure of a Client
 
 ```rust
-use webpki::DNSNameRef;
-use tokio_rustls::{ TlsConnector, rustls::ClientConfig };
+use std::sync::Arc;
+use tokio::net::TcpStream;
+use tokio_rustls::rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore, ServerName};
+use tokio_rustls::TlsConnector;
 
 // ...
 
-let mut config = ClientConfig::new();
-config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-let config = TlsConnector::from(Arc::new(config));
-let dnsname = DNSNameRef::try_from_ascii_str("www.rust-lang.org").unwrap();
+let mut root_cert_store = RootCertStore::empty();
+root_cert_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+    OwnedTrustAnchor::from_subject_spki_name_constraints(
+        ta.subject,
+        ta.spki,
+        ta.name_constraints,
+    )
+}));
+let config = ClientConfig::builder()
+    .with_safe_defaults()
+    .with_root_certificates(root_cert_store)
+    .with_no_client_auth();
+let connector = TlsConnector::from(Arc::new(config));
+let dnsname = ServerName::try_from("www.rust-lang.org").unwrap();
 
 let stream = TcpStream::connect(&addr).await?;
-let mut stream = config.connect(dnsname, stream).await?;
+let mut stream = connector.connect(dnsname, stream).await?;
 
 // ...
 ```
