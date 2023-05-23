@@ -21,6 +21,7 @@ default = ["logging", "tls12"]
 dangerous_configuration = ["rustls/dangerous_configuration"]
 early-data = []
 logging = ["rustls/logging"]
+secret_extraction = ["rustls/secret_extraction"]
 tls12 = ["rustls/tls12"]
 
 [dev-dependencies]
