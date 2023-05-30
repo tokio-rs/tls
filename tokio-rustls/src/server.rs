@@ -6,6 +6,10 @@ use std::os::windows::io::{AsRawSocket, RawSocket};
 use super::*;
 use crate::common::IoSession;
 
+pub(crate) mod async_acceptor;
+
+pub use async_acceptor::AsyncAcceptor;
+
 /// A wrapper around an underlying raw stream which implements the TLS or SSL
 /// protocol.
 #[derive(Debug)]
