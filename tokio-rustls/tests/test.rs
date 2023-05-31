@@ -217,7 +217,7 @@ async fn lazy_config_acceptor_eof() {
 }
 
 #[tokio::test]
-async fn test_async_acceptor_take_io() -> Result<(), rustls::Error> {
+async fn lazy_config_acceptor_take_io() -> Result<(), rustls::Error> {
     let (mut cstream, sstream) = tokio::io::duplex(1200);
 
     let (tx, rx) = oneshot::channel();
