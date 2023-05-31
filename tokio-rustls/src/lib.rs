@@ -203,6 +203,51 @@ where
             io: Some(io),
         }
     }
+
+    /// Takes back the client connection. Will return `None` if called more than once or if the
+    /// connection has been accepted.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # fn choose_server_config(
+    /// #     _: rustls::server::ClientHello,
+    /// # ) -> std::sync::Arc<rustls::ServerConfig> {
+    /// #     unimplemented!();
+    /// # }
+    /// # #[allow(unused_variables)]
+    /// # async fn listen() {
+    /// use tokio::io::AsyncWriteExt;
+    /// let listener = tokio::net::TcpListener::bind("127.0.0.1:4443").await.unwrap();
+    /// let (stream, _) = listener.accept().await.unwrap();
+    ///
+    /// let acceptor = tokio_rustls::LazyConfigAcceptor::new(rustls::server::Acceptor::default(), stream);
+    /// futures_util::pin_mut!(acceptor);
+    ///
+    /// match acceptor.as_mut().await {
+    ///     Ok(start) => {
+    ///         let clientHello = start.client_hello();
+    ///         let config = choose_server_config(clientHello);
+    ///         let stream = start.into_stream(config).await.unwrap();
+    ///         // Proceed with handling the ServerConnection...
+    ///     }
+    ///     Err(err) => {
+    ///         if let Some(mut stream) = acceptor.take_io() {
+    ///             stream
+    ///                 .write_all(
+    ///                     format!("HTTP/1.1 400 Invalid Input\r\n\r\n\r\n{:?}\n", err)
+    ///                         .as_bytes()
+    ///                 )
+    ///                 .await
+    ///                 .unwrap();
+    ///         }
+    ///     }
+    /// }
+    /// # }
+    /// ```
+    pub fn take_io(&mut self) -> Option<IO> {
+        self.io.take()
+    }
 }
 
 impl<IO> Future for LazyConfigAcceptor<IO>
