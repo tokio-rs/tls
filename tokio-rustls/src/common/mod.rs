@@ -1,7 +1,8 @@
 mod handshake;
 
 pub(crate) use handshake::{IoSession, MidHandshake};
-use rustls::{ConnectionCommon, SideData};
+use rustls::{ConnectionCommon, SideData, WouldBlockCell};
+use std::future::Future;
 use std::io::{self, IoSlice, Read, Write};
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
@@ -58,10 +59,16 @@ impl TlsState {
     }
 }
 
+struct StreamWouldBlock {
+    cell: WouldBlockCell,
+    last_read: usize,
+}
+
 pub struct Stream<'a, IO, C> {
     pub io: &'a mut IO,
     pub session: &'a mut C,
     pub eof: bool,
+    would_block: Option<StreamWouldBlock>
 }
 
 impl<'a, IO: AsyncRead + AsyncWrite + Unpin, C, SD> Stream<'a, IO, C>
@@ -76,6 +83,7 @@ where
             // The state so far is only used to detect EOF, so either Stream
             // or EarlyData state should both be all right.
             eof: false,
+            would_block: None,
         }
     }
 
@@ -91,29 +99,56 @@ where
     pub fn read_io(&mut self, cx: &mut Context) -> Poll<io::Result<usize>> {
         let mut reader = SyncReadAdapter { io: self.io, cx };
 
-        let n = match self.session.read_tls(&mut reader) {
-            Ok(n) => n,
-            Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,
-            Err(err) => return Poll::Ready(Err(err)),
-        };
+        loop {
+            let n;
+            let stats = if let Some(would_block) = self.would_block.as_mut() {
+                match Pin::new(&mut would_block.cell).poll(reader.cx) {
+                    Poll::Pending => return Poll::Pending,
+                    Poll::Ready(()) => {
+                        let stream_cell = self.would_block.take().unwrap();
 
-        let stats = self.session.process_new_packets().map_err(|err| {
-            // In case we have an alert to send describing this error,
-            // try a last-gasp write -- but don't predate the primary
-            // error.
-            let _ = self.write_io(cx);
+                        n = stream_cell.last_read;
+                        self.session.process_would_block(stream_cell.cell)
+                    }
+                }
+            } else {
+                n = match self.session.read_tls(&mut reader) {
+                    Ok(n) => n,
+                    Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,
+                    Err(err) => return Poll::Ready(Err(err)),
+                };
 
-            io::Error::new(io::ErrorKind::InvalidData, err)
-        })?;
+                self.session.process_new_packets()
+            };
 
-        if stats.peer_has_closed() && self.session.is_handshaking() {
-            return Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                "tls handshake alert",
-            )));
+            let stats = match stats {
+                Ok(a) => a,
+                Err(rustls::Error::WouldBlock(cell)) => {
+                    self.would_block.replace(StreamWouldBlock {
+                        cell,
+                        last_read: n,
+                    });
+                    continue;
+                }
+                Err(err) => {
+                    // In case we have an alert to send describing this error,
+                    // try a last-gasp write -- but don't predate the primary
+                    // error.
+                    let _ = self.write_io(cx);
+
+                    return Poll::Ready(Err(io::Error::new(io::ErrorKind::InvalidData, err)));
+                }
+            };
+
+            if stats.peer_has_closed() && self.session.is_handshaking() {
+                return Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "tls handshake alert",
+                )));
+            }
+
+            break Poll::Ready(Ok(n));
         }
-
-        Poll::Ready(Ok(n))
     }
 
     pub fn write_io(&mut self, cx: &mut Context) -> Poll<io::Result<usize>> {
