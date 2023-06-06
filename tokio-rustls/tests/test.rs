@@ -11,6 +11,7 @@ use std::time::Duration;
 use std::{io, thread};
 use tokio::io::{copy, split, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::oneshot;
 use tokio::{runtime, time};
 use tokio_rustls::{LazyConfigAcceptor, TlsAcceptor, TlsConnector};
 
@@ -213,6 +214,41 @@ async fn lazy_config_acceptor_eof() {
         Err(e) if e.kind() == ErrorKind::UnexpectedEof => {}
         Err(e) => panic!("unexpected error: {:?}", e),
     }
+}
+
+#[tokio::test]
+async fn lazy_config_acceptor_take_io() -> Result<(), rustls::Error> {
+    let (mut cstream, sstream) = tokio::io::duplex(1200);
+
+    let (tx, rx) = oneshot::channel();
+
+    tokio::spawn(async move {
+        cstream.write_all(b"hello, world!").await.unwrap();
+
+        let mut buf = Vec::new();
+        cstream.read_to_end(&mut buf).await.unwrap();
+        tx.send(buf).unwrap();
+    });
+
+    let acceptor = LazyConfigAcceptor::new(rustls::server::Acceptor::default(), sstream);
+    futures_util::pin_mut!(acceptor);
+    if (acceptor.as_mut().await).is_ok() {
+        panic!("Expected Err(err)");
+    }
+
+    let server_msg = b"message from server";
+
+    let some_io = acceptor.take_io();
+    assert!(some_io.is_some(), "Expected Some(io)");
+    some_io.unwrap().write_all(server_msg).await.unwrap();
+
+    assert_eq!(rx.await.unwrap(), server_msg);
+
+    assert!(
+        acceptor.take_io().is_none(),
+        "Should not be able to take twice"
+    );
+    Ok(())
 }
 
 // Include `utils` module
