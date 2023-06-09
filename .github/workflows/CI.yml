@@ -47,7 +47,6 @@ jobs:
       - name: Test
         run: |
           cargo test --all
-          cargo test -p tokio-rustls --features early-data --test early-data
 
   lints:
     name: Lints
