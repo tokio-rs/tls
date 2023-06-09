@@ -2,10 +2,11 @@
 
 ## Overview
 
-This crate contains a collection of Tokio based TLS libraries.
+This crate is the home of the tokio-native-tls crate:
 
 - [`tokio-native-tls`](tokio-native-tls)
-- [`tokio-rustls`](tokio-rustls)
+
+([tokio-rustls](https://github.com/rustls/tokio-rustls) now lives in the rustls org.)
 
 ## Getting Help
 
