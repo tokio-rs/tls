@@ -360,20 +360,45 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Future for MidHandshake<S> {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut_self = self.get_mut();
-        let mut s = mut_self.0.take().expect("future polled after completion");
+        let mut already_flushed = false;
 
-        s.get_mut().context = cx as *mut _ as *mut ();
-        match s.handshake() {
-            Ok(mut s) => {
-                s.get_mut().context = null_mut();
-                Poll::Ready(Ok(TlsStream(s)))
+        loop {
+            let mut s = mut_self.0.take().expect("future polled after completion");
+
+            s.get_mut().context = cx as *mut _ as *mut ();
+
+            match s.handshake() {
+                Ok(mut s) => {
+                    s.get_mut().context = null_mut();
+                    return Poll::Ready(Ok(TlsStream(s)));
+                }
+                Err(HandshakeError::WouldBlock(mut s)) => {
+                    s.get_mut().context = null_mut();
+
+                    match Pin::new(&mut s.get_mut().get_mut()).poll_flush(cx) {
+                        Poll::Ready(Ok(())) => {
+                            mut_self.0 = Some(s);
+
+                            if !already_flushed {
+                                already_flushed = true;
+                                continue;
+                            } else {
+                                return Poll::Pending;
+                            }
+                        }
+                        Poll::Ready(Err(_e)) => {
+                            mut_self.0 = Some(s);
+                            todo!("figure out how to bubble up the io error")
+                        }
+                        Poll::Pending => {}
+                    }
+
+                    mut_self.0 = Some(s);
+
+                    return Poll::Pending;
+                }
+                Err(HandshakeError::Failure(e)) => return Poll::Ready(Err(e)),
             }
-            Err(HandshakeError::WouldBlock(mut s)) => {
-                s.get_mut().context = null_mut();
-                mut_self.0 = Some(s);
-                Poll::Pending
-            }
-            Err(HandshakeError::Failure(e)) => Poll::Ready(Err(e)),
         }
     }
 }
